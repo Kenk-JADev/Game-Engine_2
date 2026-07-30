@@ -90,12 +90,17 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Scene | Objekte platzieren → **auto Kollision** |
 | Physics | AABB move_and_collide, Trigger |
 | Navigation | Grid-Bake aus Kollision, A*, NavAgent |
+| Animation | Tweens, Transform-Tracks, Idle-Bob |
+| Player | WASD-Bewegung, Interaktion, Follow-Kamera |
+| Weather | Rain/Storm/Snow/Fog Tint |
+| Map | JSON laden/speichern, Default-Karte |
 | Events | Interpreter (Message, Switch, Variable, Transfer, Script, …) |
 | Database | actors/enemies/items/skills/system JSON |
 | Plugins | `plugin.json` + `main.rb` |
 | Export | Spielpaket mit Game-Binary |
 | Editor UI | ImGui (wenn GL) / Headless-CLI |
-| Tests | 13 automatisierte Tests |
+| Runtime | Volle Spielschleife mit Map/Player/Events |
+| Tests | 14 automatisierte Tests |
 
 ## Vendored Third-Party
 

@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "name": "Slime",
+    "max_hp": 40,
+    "attack": 6,
+    "defense": 3,
+    "exp": 8,
+    "gold": 4,
+    "battler_graphic": ""
+  }
+]

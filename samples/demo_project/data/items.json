@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1,
+    "name": "Potion",
+    "description": "Restores HP",
+    "price": 50,
+    "consumable": true,
+    "hp_recover": 50,
+    "mp_recover": 0
+  }
+]

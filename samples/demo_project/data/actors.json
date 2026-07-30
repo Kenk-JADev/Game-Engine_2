@@ -1,0 +1,13 @@
+[
+  {
+    "id": 1,
+    "name": "Hero",
+    "class_name": "Adventurer",
+    "max_hp": 120,
+    "max_mp": 40,
+    "attack": 12,
+    "defense": 10,
+    "speed": 11,
+    "character_graphic": ""
+  }
+]

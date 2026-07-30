@@ -35,6 +35,10 @@
 #include <aether/ruby/ruby_module.hpp>
 #include <aether/game/event_system.hpp>
 #include <aether/game/database.hpp>
+#include <aether/game/player.hpp>
+#include <aether/game/weather.hpp>
+#include <aether/game/map_loader.hpp>
+#include <aether/anim/animation.hpp>
 #include <aether/plugin/plugin_loader.hpp>
 #include <aether/phys/collision.hpp>
 #include <aether/nav/pathfinding.hpp>

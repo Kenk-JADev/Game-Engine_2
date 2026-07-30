@@ -6,7 +6,9 @@ module Main
 
   def boot
     $demo_booted = "yes"
+    # Graphics.frame_rate = 60
     # Audio.bgm_play("Theme1", 80, 100)
+    # Weather.set("none", 0)
   end
 end
 

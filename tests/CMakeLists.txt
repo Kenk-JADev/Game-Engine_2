@@ -19,8 +19,9 @@ aether_add_unit_test(aether_audio_test  unit/audio_test.cpp)
 aether_add_unit_test(aether_res_test     unit/res_test.cpp)
 aether_add_unit_test(aether_ruby_test    unit/ruby_test.cpp)
 aether_add_unit_test(aether_project_test unit/project_test.cpp)
-aether_add_unit_test(aether_game_test     unit/game_test.cpp)
-aether_add_unit_test(aether_phys_nav_test unit/phys_nav_test.cpp)
+aether_add_unit_test(aether_game_test      unit/game_test.cpp)
+aether_add_unit_test(aether_phys_nav_test  unit/phys_nav_test.cpp)
+aether_add_unit_test(aether_gameplay_test  unit/gameplay_test.cpp)
 
 # Runtime smoke (headless, few frames) – uses samples if present
 add_test(

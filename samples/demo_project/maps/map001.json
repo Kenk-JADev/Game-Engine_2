@@ -1,0 +1,141 @@
+{
+  "name": "Demo Village",
+  "objects": [
+    {
+      "id": 1,
+      "name": "Boden",
+      "type": 0,
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "visible": true,
+      "mesh": "plane"
+    },
+    {
+      "id": 2,
+      "name": "Player",
+      "type": 1,
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.6,
+        1.2,
+        0.6
+      ],
+      "visible": true,
+      "mesh": "cube"
+    },
+    {
+      "id": 3,
+      "name": "Elder",
+      "type": 2,
+      "position": [
+        3,
+        0,
+        -2
+      ],
+      "scale": [
+        0.6,
+        1.2,
+        0.6
+      ],
+      "visible": true,
+      "mesh": "cube",
+      "event": {
+        "id": 0,
+        "name": "Elder",
+        "x": 3,
+        "y": 0,
+        "z": -2,
+        "pages": [
+          {
+            "name": "Talk",
+            "trigger": "action",
+            "conditions": {},
+            "commands": [
+              {
+                "type": "message",
+                "params": {
+                  "text": "Willkommen in Aether Demo!"
+                }
+              },
+              {
+                "type": "set_switch",
+                "params": {
+                  "id": 1,
+                  "value": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "name": "Felsen",
+      "type": 0,
+      "position": [
+        -4,
+        0.5,
+        3
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "visible": true,
+      "mesh": "cube"
+    },
+    {
+      "id": 5,
+      "name": "Sign",
+      "type": 4,
+      "position": [
+        0,
+        0,
+        -5
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "visible": true,
+      "mesh": "cube",
+      "event": {
+        "id": 0,
+        "name": "Sign",
+        "x": 0,
+        "y": 0,
+        "z": -5,
+        "pages": [
+          {
+            "name": "Read",
+            "trigger": "action",
+            "conditions": {},
+            "commands": [
+              {
+                "type": "message",
+                "params": {
+                  "text": "Norden: Wald  |  Osten: Stadt"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

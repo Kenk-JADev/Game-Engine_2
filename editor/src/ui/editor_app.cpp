@@ -853,13 +853,13 @@ void EditorApp::create_project(const std::filesystem::path& path) {
         shared::ProjectDescriptor d;
         d.name = path.filename().string();
         d.graphics.title = d.name;
-        shared::save_project_descriptor(path / "project.json", d, nullptr);
+        (void)shared::save_project_descriptor(path / "project.json", d, nullptr);
         write_text_file(path / "scripts" / "main.rb",
                         "# frozen_string_literal: true\nmodule Main\n  module_function\n  def boot; end\nend\nMain.boot\n");
     }
     auto db = game::Database::make_default();
     db.system.game_title = path.filename().string();
-    db.save_to_directory(path / "data");
+    (void)db.save_to_directory(path / "data");
     open_project(path);
     status_message_ = "Projekt angelegt: " + path.string();
 }
@@ -871,10 +871,12 @@ void EditorApp::save_project() {
         status_message_ = err;
         return;
     }
-    database_.save_to_directory(project_.root_dir / project_.data_path);
+(void)database_.save_to_directory(project_.root_dir / project_.data_path);
     if (map_scene_) {
-        write_text_file(project_.root_dir / project_.maps_path / "map001.json",
-                        map_scene_->to_json().dump(2));
+        const auto map_path = game::map_path_for_id(
+            project_.root_dir / project_.maps_path,
+            static_cast<aether::u32>(project_.start.map_id));
+        (void)game::save_map(map_path, *map_scene_);
     }
     save_script_buffer();
     status_message_ = "Gespeichert";
@@ -882,37 +884,15 @@ void EditorApp::save_project() {
 
 void EditorApp::ensure_map_scene() {
     if (map_scene_) return;
-    namespace fs = std::filesystem;
-    const auto map_path = project_.root_dir / project_.maps_path / "map001.json";
-    if (fs::exists(map_path)) {
-        try {
-            auto txt = read_text_file(map_path);
-            auto j = nlohmann::json::parse(txt);
-            map_scene_ = scene::Scene::create_from_json(j);
-            for (auto& o : map_scene_->objects()) {
-                if (!o.mesh) {
-                    o.mesh = (o.type == scene::ObjectType::Prop &&
-                              o.name.find("Boden") != std::string::npos)
-                                 ? render::Mesh::create_plane(40.0f)
-                                 : render::Mesh::create_cube(1.0f);
-                    if (renderer_) renderer_->upload_mesh(*o.mesh);
-                }
-            }
-            map_scene_->rebuild_collision();
-            return;
-        } catch (...) {
-        }
+    const auto map_path = game::map_path_for_id(project_.root_dir / project_.maps_path,
+                                                static_cast<aether::u32>(project_.start.map_id));
+    auto loaded = game::load_map(map_path, resources_.get(), renderer_.get());
+    if (loaded.scene) {
+        map_scene_ = std::move(loaded.scene);
+        status_message_ = loaded.message;
+        return;
     }
-    map_scene_ = std::make_unique<scene::Scene>("Map 001");
-    // default ground
-    render::Transform t;
-    t.position = {0, 0, 0};
-    auto ground = render::Mesh::create_plane(40.0f);
-    if (renderer_) renderer_->upload_mesh(*ground);
-    auto id = map_scene_->place(scene::ObjectType::Prop, "Boden", ground, t);
-    if (auto* o = map_scene_->find(id)) {
-        o->material.albedo = render::Color{0.35f, 0.55f, 0.30f, 1};
-    }
+    map_scene_ = game::create_default_map("Map 001", renderer_.get());
 }
 
 void EditorApp::place_palette_object(const char* kind) {

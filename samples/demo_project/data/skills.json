@@ -1,0 +1,10 @@
+[
+  {
+    "id": 1,
+    "name": "Fire",
+    "description": "Small flame",
+    "mp_cost": 5,
+    "power": 20,
+    "scope": "one_enemy"
+  }
+]

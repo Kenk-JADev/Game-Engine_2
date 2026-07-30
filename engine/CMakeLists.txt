@@ -29,6 +29,7 @@ set(AETHER_ENGINE_SOURCES
     src/render/null_renderer.cpp
     # Input
     src/input/input_manager.cpp
+    src/input/glfw_input.cpp
     # Audio
     src/audio/audio_engine.cpp
     src/audio/null_audio.cpp
@@ -40,6 +41,11 @@ set(AETHER_ENGINE_SOURCES
     # Game framework
     src/game/event_system.cpp
     src/game/database.cpp
+    src/game/player.cpp
+    src/game/weather.cpp
+    src/game/map_loader.cpp
+    # Animation
+    src/anim/animation.cpp
     # Plugins
     src/plugin/plugin_loader.cpp
     # Physics / Nav / Scene

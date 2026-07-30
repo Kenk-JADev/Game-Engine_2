@@ -7,6 +7,11 @@
 #include <algorithm>
 
 namespace aether::input {
+
+// from glfw_input.cpp
+void input_attach_glfw_callbacks(InputManager* input, void* native_glfw_window);
+void input_detach_glfw_callbacks(void* native_glfw_window);
+
 namespace {
 
 usize key_index(Key k) {
@@ -34,15 +39,23 @@ InputManager::~InputManager() {
 }
 
 void InputManager::attach_window(window::Window* window) {
+    detach_window();
     window_ = window;
-    // GLFW-Callbacks werden im Window-Modul später verdrahtet.
-    // Für NullWindow arbeiten Tests über feed_*.
-    if (window_) {
-        core::log_debug("Input", "Attached to window backend");
+    if (!window_) {
+        return;
+    }
+    if (window_->backend() == window::WindowBackend::Glfw && window_->native_handle()) {
+        input_attach_glfw_callbacks(this, window_->native_handle());
+    } else {
+        core::log_debug("Input", "Attached without GLFW callbacks (feed_* mode)");
     }
 }
 
 void InputManager::detach_window() {
+    if (window_ && window_->backend() == window::WindowBackend::Glfw &&
+        window_->native_handle()) {
+        input_detach_glfw_callbacks(window_->native_handle());
+    }
     window_ = nullptr;
 }
 
