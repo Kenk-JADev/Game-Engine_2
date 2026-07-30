@@ -4,6 +4,7 @@
  */
 #include "editor_app.hpp"
 #include "export/exporter.hpp"
+#include "scripts/script_highlighter.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -303,6 +304,11 @@ void EditorApp::draw_menu_bar() {
             if (ImGui::MenuItem("Öffnen…")) tab_ = EditorTab::Project;
             if (ImGui::MenuItem("Speichern", "Ctrl+S", false, project_open_)) save_project();
             ImGui::Separator();
+            if (ImGui::MenuItem("Rückgängig", "Ctrl+Z", false, project_open_ && undo_.can_undo()))
+                do_undo();
+            if (ImGui::MenuItem("Wiederholen", "Ctrl+Y", false, project_open_ && undo_.can_redo()))
+                do_redo();
+            ImGui::Separator();
             if (ImGui::MenuItem("Beenden")) running_ = false;
             ImGui::EndMenu();
         }
@@ -404,7 +410,14 @@ void EditorApp::draw_map_tab() {
     const char* items[] = {"Prop (Würfel)", "NPC", "Gegner", "Event", "Boden"};
     ImGui::ListBox("##pal", &palette_index_, items, IM_ARRAYSIZE(items));
     if (ImGui::Button("Platzieren", ImVec2(-1, 0))) {
+        push_undo("Platzieren");
         place_palette_object(items[palette_index_]);
+    }
+    if (ImGui::Button("Rückgängig", ImVec2(-1, 0))) {
+        do_undo();
+    }
+    if (ImGui::Button("Wiederholen", ImVec2(-1, 0))) {
+        do_redo();
     }
     if (ImGui::Button("Navigation backen", ImVec2(-1, 0))) {
         map_scene_->bake_navigation();
@@ -458,6 +471,7 @@ void EditorApp::draw_map_tab() {
             if (ImGui::Button("Events öffnen")) tab_ = EditorTab::Events;
         }
         if (ImGui::Button("Löschen")) {
+            push_undo("Löschen");
             map_scene_->remove_object(selected_id_);
             selected_id_ = kInvalidEntity;
         }
@@ -804,8 +818,8 @@ void EditorApp::draw_scripts_tab() {
 
     ImGui::Text("Skript: %s", script_path_.c_str());
     ImGui::TextWrapped(
-        "Ruby nur für Spiellogik. API: Graphics, Audio, Input, SceneManager, Player, "
-        "NPC, Enemy, Camera, Weather, Inventory, Quest, Dialogue, Map");
+        "Ruby nur für Spiellogik. Syntax-Highlighting in der Vorschau. "
+        "Autocomplete über Präfix + Liste.");
 
     if (ImGui::Button("Laden")) load_script_buffer();
     ImGui::SameLine();
@@ -813,12 +827,72 @@ void EditorApp::draw_scripts_tab() {
     ImGui::SameLine();
     if (ImGui::Button("Ausführen / Hot-Reload")) reload_scripts();
 
+    ImGui::BeginChild("script_edit", ImVec2(0, -220), true);
     ImGui::InputTextMultiline("##code", script_buffer_.data(), script_buffer_.size(),
-                              ImVec2(-1, -120), ImGuiInputTextFlags_AllowTabInput);
+                              ImVec2(-1, -1), ImGuiInputTextFlags_AllowTabInput);
+    ImGui::EndChild();
+
+    ImGui::BeginChild("script_side", ImVec2(0, 210), true);
+    ImGui::Columns(3, nullptr, true);
+    ImGui::TextUnformatted("Highlight-Vorschau");
+    ImGui::BeginChild("hl", ImVec2(0, 160), true);
+    {
+        std::string src(script_buffer_.data());
+        std::size_t line_start = 0;
+        int lines_shown = 0;
+        while (line_start <= src.size() && lines_shown < 40) {
+            std::size_t line_end = src.find('\n', line_start);
+            if (line_end == std::string::npos) line_end = src.size();
+            const auto line = std::string_view(src).substr(line_start, line_end - line_start);
+            auto tokens = tokenize_ruby_line(line);
+            for (std::size_t ti = 0; ti < tokens.size(); ++ti) {
+                const auto& tk = tokens[ti];
+                const auto c = color_for(tk.kind);
+                if (ti > 0) ImGui::SameLine(0, 0);
+                ImGui::TextColored(ImVec4(c.r / 255.f, c.g / 255.f, c.b / 255.f, 1), "%s",
+                                   tk.text.c_str());
+            }
+            if (tokens.empty()) {
+                ImGui::TextUnformatted(" ");
+            }
+            if (line_end == src.size()) break;
+            line_start = line_end + 1;
+            ++lines_shown;
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::NextColumn();
+    ImGui::TextUnformatted("Autocomplete");
+    ImGui::InputText("Präfix", script_complete_prefix_, sizeof(script_complete_prefix_));
+    auto comps = ruby_api_completions(script_complete_prefix_);
+    ImGui::BeginChild("ac", ImVec2(0, 160), true);
+    for (const auto& c : comps) {
+        if (ImGui::Selectable(c.c_str())) {
+            // append to buffer end (simple)
+            std::string cur(script_buffer_.data());
+            if (!cur.empty() && cur.back() != '\n') cur.push_back('\n');
+            cur += c;
+            cur.push_back('\n');
+            if (cur.size() + 1 < script_buffer_.size()) {
+                std::memcpy(script_buffer_.data(), cur.c_str(), cur.size() + 1);
+            }
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::NextColumn();
+    ImGui::TextUnformatted("API-Dokumentation");
+    ImGui::BeginChild("apidoc", ImVec2(0, 160), true);
+    for (const auto& d : ruby_api_doc_lines()) {
+        ImGui::BulletText("%s", d.c_str());
+    }
+    ImGui::EndChild();
+    ImGui::Columns(1);
+
     ImGui::Separator();
     ImGui::TextUnformatted("Ausgabe");
-    ImGui::BeginChild("sout", ImVec2(0, 0), true);
-    ImGui::TextUnformatted(script_output_.c_str());
+    ImGui::TextWrapped("%s", script_output_.c_str());
     ImGui::EndChild();
 #endif
 }
@@ -858,6 +932,31 @@ void EditorApp::draw_status_bar() {
 #endif
 }
 
+void EditorApp::push_undo(std::string label) {
+    ensure_map_scene();
+    if (map_scene_) {
+        undo_.push(*map_scene_, std::move(label));
+    }
+}
+
+void EditorApp::do_undo() {
+    auto sc = undo_.undo(renderer_.get());
+    if (sc) {
+        map_scene_ = std::move(sc);
+        selected_id_ = kInvalidEntity;
+        status_message_ = std::string("Undo: ") + undo_.last_label();
+    }
+}
+
+void EditorApp::do_redo() {
+    auto sc = undo_.redo(renderer_.get());
+    if (sc) {
+        map_scene_ = std::move(sc);
+        selected_id_ = kInvalidEntity;
+        status_message_ = std::string("Redo: ") + undo_.last_label();
+    }
+}
+
 void EditorApp::open_project(const std::filesystem::path& path) {
     std::string err;
     shared::ProjectDescriptor desc;
@@ -881,7 +980,11 @@ void EditorApp::open_project(const std::filesystem::path& path) {
     database_ = db ? std::move(db.value()) : game::Database::make_default();
 
     map_scene_.reset();
+    undo_.clear();
     ensure_map_scene();
+    if (map_scene_) {
+        undo_.push(*map_scene_, "Öffnen");
+    }
     load_script_buffer();
     status_message_ = "Projekt geöffnet: " + project_.name;
 }
@@ -939,9 +1042,13 @@ void EditorApp::ensure_map_scene() {
     if (loaded.scene) {
         map_scene_ = std::move(loaded.scene);
         status_message_ = loaded.message;
+        if (undo_.can_undo() == false && undo_.can_redo() == false) {
+            undo_.push(*map_scene_, "Basis");
+        }
         return;
     }
     map_scene_ = game::create_default_map("Map 001", renderer_.get());
+    undo_.push(*map_scene_, "Basis");
 }
 
 void EditorApp::place_palette_object(const char* kind) {

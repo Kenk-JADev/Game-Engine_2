@@ -2,6 +2,7 @@
  * @file resource_manager.cpp
  */
 #include <aether/res/resource_manager.hpp>
+#include <aether/res/gltf_loader.hpp>
 #include <aether/core/logger.hpp>
 
 #include <algorithm>
@@ -263,6 +264,14 @@ Result<std::shared_ptr<render::Mesh>> ResourceManager::read_mesh_stub(const fs::
     std::string e = ext;
     std::transform(e.begin(), e.end(), e.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    if (e == ".gltf" || e == ".glb") {
+        auto mesh = load_gltf_mesh(path);
+        if (mesh) {
+            return Result<std::shared_ptr<render::Mesh>>::ok(std::move(mesh));
+        }
+        core::log_warn("Res", "glTF load failed, cube fallback: " + path.string());
+    }
 
     if (e == ".obj") {
         std::ifstream in(path);

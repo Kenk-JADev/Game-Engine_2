@@ -8,6 +8,9 @@ set_target_properties(aether_glad PROPERTIES FOLDER "third_party" POSITION_INDEP
 add_library(aether_stb INTERFACE)
 target_include_directories(aether_stb INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/stb)
 
+add_library(aether_cgltf INTERFACE)
+target_include_directories(aether_cgltf INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/cgltf)
+
 add_library(aether_miniaudio INTERFACE)
 target_include_directories(aether_miniaudio INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/miniaudio)
 

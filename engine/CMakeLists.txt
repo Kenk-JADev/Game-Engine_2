@@ -35,6 +35,8 @@ set(AETHER_ENGINE_SOURCES
     src/audio/null_audio.cpp
     # Resources
     src/res/resource_manager.cpp
+    src/res/gltf_loader.cpp
+    src/res/cgltf_impl.cpp
     # Ruby
     src/ruby/ruby_vm.cpp
     # mruby_vm.cpp optionally appended below
@@ -148,6 +150,10 @@ target_link_libraries(aether_engine
 if(AETHER_WITH_STB AND TARGET aether_stb)
     target_link_libraries(aether_engine PUBLIC aether_stb)
     target_compile_definitions(aether_engine PUBLIC AETHER_WITH_STB=1)
+endif()
+
+if(TARGET aether_cgltf)
+    target_link_libraries(aether_engine PUBLIC aether_cgltf)
 endif()
 
 if(AETHER_WITH_MINIAUDIO AND TARGET aether_miniaudio)

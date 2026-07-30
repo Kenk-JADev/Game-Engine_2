@@ -10,6 +10,8 @@
 #include <aether/aether.hpp>
 #include <aether/shared/project_descriptor.hpp>
 
+#include "ui/undo_stack.hpp"
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -72,6 +74,9 @@ private:
     void load_script_buffer();
     void save_script_buffer();
     void reload_scripts();
+    void push_undo(std::string label);
+    void do_undo();
+    void do_redo();
 
     bool init_imgui();
     void shutdown_imgui();
@@ -104,6 +109,7 @@ private:
     render::Camera map_camera_{};
     EntityId selected_id_ = kInvalidEntity;
     int palette_index_ = 0;
+    UndoStack undo_;
 
     // Database editor
     int db_subtab_ = 0; // 0 actors 1 enemies 2 items 3 skills 4 system
@@ -118,6 +124,7 @@ private:
     std::string script_path_;
     std::vector<char> script_buffer_;
     std::string script_output_;
+    char script_complete_prefix_[64]{};
 
     // Stats
     u64 frame_ = 0;

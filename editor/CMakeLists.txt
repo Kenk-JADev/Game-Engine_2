@@ -5,6 +5,8 @@
 set(AETHER_EDITOR_SOURCES
     src/app/main.cpp
     src/ui/editor_app.cpp
+    src/ui/undo_stack.cpp
+    src/scripts/script_highlighter.cpp
     src/export/exporter.cpp
 )
 

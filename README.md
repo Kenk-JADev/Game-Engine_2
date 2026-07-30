@@ -107,7 +107,11 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Export | Spielpaket mit Game-Binary |
 | Editor UI | ImGui-Tabs, Event-Palette, Viewport-Kamera |
 | Runtime | Titel → Map → Menü/Dialog/Kampf/Save |
-| Tests | 16 automatisierte Tests |
+| glTF/GLB | cgltf-Loader |
+| Script-IDE | Highlight-Vorschau, Autocomplete, API-Doku |
+| Undo | Karteneditor Snapshot-Undo/Redo |
+| Handbuch | docs/user/HANDBUCH.md |
+| Tests | 18 automatisierte Tests |
 
 ## Vendored Third-Party
 

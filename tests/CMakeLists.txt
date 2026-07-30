@@ -24,6 +24,16 @@ aether_add_unit_test(aether_phys_nav_test  unit/phys_nav_test.cpp)
 aether_add_unit_test(aether_gameplay_test  unit/gameplay_test.cpp)
 aether_add_unit_test(aether_save_inv_test    unit/save_inv_test.cpp)
 aether_add_unit_test(aether_battle_quest_test unit/battle_quest_test.cpp)
+aether_add_unit_test(aether_gltf_test unit/gltf_script_test.cpp)
+
+add_executable(aether_highlighter_test unit/highlighter_test.cpp
+    ${CMAKE_SOURCE_DIR}/editor/src/scripts/script_highlighter.cpp)
+target_include_directories(aether_highlighter_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/editor/src
+    ${CMAKE_SOURCE_DIR}/engine/include)
+target_link_libraries(aether_highlighter_test PRIVATE aether::engine aether::shared)
+aether_apply_common_options(aether_highlighter_test)
+add_test(NAME aether_highlighter_test COMMAND aether_highlighter_test)
 
 # Runtime smoke (headless, few frames) – uses samples if present
 add_test(
