@@ -4,7 +4,7 @@
  *
  * Backend:
  *  - StubRubyVm  – immer verfügbar (parst/führt nicht aus, API-Smoke)
- *  - MRubyVm     – später mit mruby (AETHER_WITH_MRUBY)
+ *  - MRubyVM     – echte mruby-VM wenn AETHER_WITH_MRUBY
  *
  * Ruby ist ausschließlich für Spiellogik gedacht. Die Engine stellt Module:
  *   Graphics, Audio, Input, SceneManager, Player, NPC, Enemy,
@@ -54,7 +54,18 @@ struct HostFunction {
  */
 class RubyVM : public aether::NonMovable {
 public:
-    [[nodiscard]] static std::unique_ptr<RubyVM> create(RubyBackend backend = RubyBackend::Stub);
+    /**
+     * @brief Erzeugt eine VM.
+     * @param backend  MRuby wenn mit AETHER_WITH_MRUBY gebaut, sonst Stub.
+     *                 Default wählt automatisch das beste verfügbare Backend.
+     */
+    [[nodiscard]] static std::unique_ptr<RubyVM> create(
+#if defined(AETHER_WITH_MRUBY)
+        RubyBackend backend = RubyBackend::MRuby
+#else
+        RubyBackend backend = RubyBackend::Stub
+#endif
+    );
 
     virtual ~RubyVM();
 

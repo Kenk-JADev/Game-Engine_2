@@ -5,6 +5,10 @@
 #include <aether/ruby/ruby_vm.hpp>
 #include <aether/core/logger.hpp>
 
+#if defined(AETHER_WITH_MRUBY)
+#  include "mruby_vm.hpp"
+#endif
+
 #include <cctype>
 #include <fstream>
 #include <sstream>
@@ -237,14 +241,18 @@ RubyVM::RubyVM(RubyBackend backend) : backend_(backend) {}
 RubyVM::~RubyVM() = default;
 
 std::unique_ptr<RubyVM> RubyVM::create(RubyBackend backend) {
-    switch (backend) {
-    case RubyBackend::MRuby:
-        core::log_warn("Ruby", "mruby backend not linked – using Stub");
-        [[fallthrough]];
-    case RubyBackend::Stub:
-    default:
+#if defined(AETHER_WITH_MRUBY)
+    if (backend == RubyBackend::Stub) {
         return std::make_unique<StubRubyVM>();
     }
+    // Default and explicit MRuby
+    return std::make_unique<MRubyVM>();
+#else
+    if (backend == RubyBackend::MRuby) {
+        core::log_warn("Ruby", "mruby backend not linked – using Stub");
+    }
+    return std::make_unique<StubRubyVM>();
+#endif
 }
 
 void RubyVM::define_function(HostFunction fn) {

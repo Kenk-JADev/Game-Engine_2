@@ -21,8 +21,11 @@ static int g_failures = 0;
     } while (0)
 
 int main() {
+    // Prefer stub for deterministic unit tests of the lightweight evaluator.
+    // mruby is covered in CI integration when AETHER_WITH_MRUBY=ON.
     auto vm = RubyVM::create(RubyBackend::Stub);
     CHECK(vm != nullptr);
+    CHECK(vm->backend() == RubyBackend::Stub);
     vm->define_engine_api();
 
     auto r = vm->eval("return 42");

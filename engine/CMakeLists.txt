@@ -6,6 +6,7 @@ option(AETHER_WITH_GLFW      "Enable GLFW window backend" ON)
 option(AETHER_WITH_OPENGL    "Enable OpenGL renderer (needs GLFW+GLAD)" ON)
 option(AETHER_WITH_MINIAUDIO "Enable miniaudio backend" ON)
 option(AETHER_WITH_STB       "Enable stb_image textures" ON)
+option(AETHER_WITH_MRUBY     "Enable mruby scripting (needs host Ruby/rake)" OFF)
 
 set(AETHER_ENGINE_SOURCES
     # Core
@@ -35,6 +36,7 @@ set(AETHER_ENGINE_SOURCES
     src/res/resource_manager.cpp
     # Ruby
     src/ruby/ruby_vm.cpp
+    # mruby_vm.cpp optionally appended below
     # Game framework
     src/game/event_system.cpp
     src/game/database.cpp
@@ -94,6 +96,19 @@ if(AETHER_WITH_STB)
     message(STATUS "Aether Textures: stb_image")
 endif()
 
+set(AETHER_MRUBY_AVAILABLE FALSE)
+if(AETHER_WITH_MRUBY)
+    aether_require_mruby()
+    if(AETHER_MRUBY_AVAILABLE)
+        list(APPEND AETHER_ENGINE_SOURCES src/ruby/mruby_vm.cpp)
+        message(STATUS "Aether Ruby: mruby + Stub")
+    else()
+        message(STATUS "Aether Ruby: Stub only (mruby unavailable)")
+    endif()
+else()
+    message(STATUS "Aether Ruby: Stub only")
+endif()
+
 # -----------------------------------------------------------------------------
 # Library
 # -----------------------------------------------------------------------------
@@ -143,6 +158,14 @@ endif()
 if(AETHER_OPENGL_AVAILABLE)
     target_link_libraries(aether_engine PUBLIC aether_glad)
     target_compile_definitions(aether_engine PUBLIC AETHER_WITH_OPENGL=1)
+endif()
+
+if(AETHER_MRUBY_AVAILABLE AND TARGET aether_mruby)
+    target_link_libraries(aether_engine PUBLIC aether_mruby)
+    target_compile_definitions(aether_engine PUBLIC AETHER_WITH_MRUBY=1)
+    target_include_directories(aether_engine PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
 endif()
 
 aether_apply_common_options(aether_engine)

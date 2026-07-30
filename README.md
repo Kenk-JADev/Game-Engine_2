@@ -1,5 +1,7 @@
 # AetherRPG Maker
 
+[![CI](https://github.com/Kenk-JADev/Game-Engine_2/actions/workflows/ci.yml/badge.svg)](https://github.com/Kenk-JADev/Game-Engine_2/actions/workflows/ci.yml)
+
 Eigenständige **3D-RPG-Maker-Software** mit eigener Engine, eigenem Editor und schlanker Runtime (`Game` / `Game.exe`).
 
 > Keine Abhängigkeit von Unity, Unreal, Godot oder proprietärem RGSS-Quellcode.
@@ -28,16 +30,33 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-**Optional für echtes Fenster + ImGui-GUI + OpenGL:**
+**Optional für echtes Fenster + ImGui-GUI + OpenGL + mruby:**
 
 ```bash
-sudo apt install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+sudo apt install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+  libgl1-mesa-dev ruby ruby-dev bison libasound2-dev
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DAETHER_WITH_GLFW=ON -DAETHER_WITH_OPENGL=ON -DAETHER_WITH_MRUBY=ON
 cmake --build build -j
 ./build/bin/AetherEditor --gui --project samples/demo_project
 ```
 
 Ohne X11/GL baut das System automatisch **NullWindow + NullRenderer** (Headless/CI).
+
+## GitHub Actions CI
+
+Bei jedem Push/PR läuft [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+| Job | Inhalt |
+|-----|--------|
+| **Linux Debug/Release** | GLFW, OpenGL, miniaudio, stb, **mruby**, `ctest`, Xvfb-Smoke, Artifacts |
+| **Linux Headless** | Nur Null-Backends (Regressions-Schutz) |
+| **Windows MSVC** | VS2022 x64, GLFW/OpenGL, Tests, Artifacts |
+| **macOS** | Best-effort |
+
+Release-Tags `v*` → [`.github/workflows/release.yml`](.github/workflows/release.yml) packt Linux/Windows-Zips.
+
+Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 
 ### Runtime
 
@@ -66,7 +85,7 @@ Ohne X11/GL baut das System automatisch **NullWindow + NullRenderer** (Headless/
 | Input | RPG-Actions (confirm/cancel/WASD…) |
 | Audio | BGM/BGS/ME/SE – Null + **miniaudio** |
 | Resources | VFS, Cache, JSON, **stb_image**, OBJ-Loader |
-| Ruby | Stub-VM + Engine-API (mruby-Quellen unter `third_party/mruby-src` für späteren Host-Ruby-Build) |
+| Ruby | Stub-VM immer; **mruby** mit `-DAETHER_WITH_MRUBY=ON` (CI mit System-Ruby) |
 | Scene | Objekte platzieren → **auto Kollision** |
 | Physics | AABB move_and_collide, Trigger |
 | Navigation | Grid-Bake aus Kollision, A*, NavAgent |

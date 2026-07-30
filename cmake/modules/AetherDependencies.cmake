@@ -124,5 +124,97 @@ function(aether_require_glm)
     endif()
 endfunction()
 
+# -----------------------------------------------------------------------------
+# mruby – optional, requires host Ruby (rake) to compile the VM
+# -----------------------------------------------------------------------------
+function(aether_require_mruby)
+    if(TARGET aether_mruby)
+        set(AETHER_MRUBY_AVAILABLE TRUE PARENT_SCOPE)
+        return()
+    endif()
+
+    find_program(AETHER_RUBY_EXECUTABLE NAMES ruby)
+    find_program(AETHER_RAKE_EXECUTABLE NAMES rake)
+    if(NOT AETHER_RUBY_EXECUTABLE)
+        message(STATUS "mruby: host ruby not found – StubRubyVM only")
+        set(AETHER_MRUBY_AVAILABLE FALSE PARENT_SCOPE)
+        return()
+    endif()
+
+    # Prefer vendored tree, else FetchContent
+    set(_mruby_src "")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/mruby-src/Rakefile")
+        set(_mruby_src "${CMAKE_SOURCE_DIR}/third_party/mruby-src")
+        message(STATUS "mruby: using vendored third_party/mruby-src")
+    else()
+        message(STATUS "mruby: fetching via FetchContent")
+        FetchContent_Declare(
+            mruby_fc
+            GIT_REPOSITORY https://github.com/mruby/mruby.git
+            GIT_TAG        3.3.0
+            GIT_SHALLOW    TRUE
+        )
+        FetchContent_GetProperties(mruby_fc)
+        if(NOT mruby_fc_POPULATED)
+            FetchContent_Populate(mruby_fc)
+        endif()
+        set(_mruby_src "${mruby_fc_SOURCE_DIR}")
+    endif()
+
+    set(_mruby_build "${CMAKE_BINARY_DIR}/mruby-build")
+    set(_mruby_lib   "${_mruby_build}/host/lib/libmruby.a")
+    if(MSVC)
+        set(_mruby_lib "${_mruby_build}/host/lib/libmruby.lib")
+    endif()
+    set(_mruby_cfg   "${CMAKE_SOURCE_DIR}/cmake/mruby_build_config.rb")
+    set(_mruby_script "${CMAKE_BINARY_DIR}/build_mruby.cmake")
+
+    # Generate a small cmake driver so paths with spaces work reliably
+    file(WRITE "${_mruby_script}" "
+set(ENV{MRUBY_CONFIG} \"${_mruby_cfg}\")
+set(ENV{MRUBY_BUILD_DIR} \"${_mruby_build}\")
+if(EXISTS \"${AETHER_RAKE_EXECUTABLE}\")
+  execute_process(COMMAND \"${AETHER_RAKE_EXECUTABLE}\"
+    WORKING_DIRECTORY \"${_mruby_src}\"
+    RESULT_VARIABLE rv)
+else()
+  execute_process(COMMAND \"${AETHER_RUBY_EXECUTABLE}\" \"./minirake\"
+    WORKING_DIRECTORY \"${_mruby_src}\"
+    RESULT_VARIABLE rv)
+endif()
+if(NOT rv EQUAL 0)
+  message(FATAL_ERROR \"mruby rake failed: \${rv}\")
+endif()
+")
+
+    include(ExternalProject)
+    ExternalProject_Add(mruby_ext
+        SOURCE_DIR ${_mruby_src}
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ${CMAKE_COMMAND} -P ${_mruby_script}
+        BUILD_IN_SOURCE 0
+        INSTALL_COMMAND ""
+        BUILD_BYPRODUCTS ${_mruby_lib}
+        LOG_BUILD 1
+        USES_TERMINAL_BUILD TRUE
+    )
+
+    add_library(aether_mruby STATIC IMPORTED GLOBAL)
+    set_target_properties(aether_mruby PROPERTIES
+        IMPORTED_LOCATION ${_mruby_lib}
+        INTERFACE_INCLUDE_DIRECTORIES "${_mruby_src}/include"
+    )
+    add_dependencies(aether_mruby mruby_ext)
+
+    # mruby may need libm / dl
+    if(UNIX AND NOT APPLE)
+        set_property(TARGET aether_mruby APPEND PROPERTY INTERFACE_LINK_LIBRARIES m dl)
+    endif()
+
+    set(AETHER_MRUBY_AVAILABLE TRUE PARENT_SCOPE)
+    set(AETHER_MRUBY_INCLUDE_DIR "${_mruby_src}/include" PARENT_SCOPE)
+    message(STATUS "mruby: will build into ${_mruby_build}")
+endfunction()
+
 # Threads (Standard)
 find_package(Threads REQUIRED)
