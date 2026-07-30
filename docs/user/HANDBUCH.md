@@ -99,8 +99,12 @@ MeinSpiel/
 | PNG, JPG | ja (stb_image) |
 | OBJ | ja |
 | glTF, GLB | ja (cgltf) |
-| FBX | nein (noch Cube-Fallback) |
-| WAV, OGG, MP3 | ja (miniaudio) |
+| FBX | nein (Cube-Fallback) |
+| WAV, OGG, MP3 | ja (miniaudio); Demo enthält WAV-Beispiele |
+
+### Script-Debugger
+
+Im Tab **Skripte**: Breakpoint-Zeile setzen → **BP+** → **Debug Run** → bei Stop **Step** / **Continue**.
 
 ## 6. Plugins
 

@@ -10,6 +10,7 @@
 #include <aether/aether.hpp>
 #include <aether/shared/project_descriptor.hpp>
 
+#include "scripts/script_debugger.hpp"
 #include "ui/undo_stack.hpp"
 
 #include <memory>
@@ -125,6 +126,8 @@ private:
     std::vector<char> script_buffer_;
     std::string script_output_;
     char script_complete_prefix_[64]{};
+    ScriptDebugger debugger_;
+    int bp_line_input_ = 1;
 
     // Stats
     u64 frame_ = 0;

@@ -5,8 +5,16 @@
       "id": 1,
       "name": "Boden",
       "type": 0,
-      "position": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "visible": true,
       "mesh": "plane"
     },
@@ -14,8 +22,16 @@
       "id": 2,
       "name": "Player",
       "type": 1,
-      "position": [0, 0, 0],
-      "scale": [0.6, 1.2, 0.6],
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.6,
+        1.2,
+        0.6
+      ],
       "visible": true,
       "mesh": "cube"
     },
@@ -23,8 +39,16 @@
       "id": 3,
       "name": "Elder",
       "type": 2,
-      "position": [3, 0, -2],
-      "scale": [0.6, 1.2, 0.6],
+      "position": [
+        3,
+        0,
+        -2
+      ],
+      "scale": [
+        0.6,
+        1.2,
+        0.6
+      ],
       "visible": true,
       "mesh": "cube",
       "event": {
@@ -42,53 +66,72 @@
               {
                 "type": "message",
                 "params": {
-                  "text": "Willkommen in Aether Demo! Ich bin der Älteste."
+                  "text": "Willkommen in Aether Demo! Ich bin der \u00c4lteste."
                 }
               },
               {
                 "type": "message",
                 "params": {
-                  "text": "Im Osten lauern Schleime. Drücke Bild-Ab für einen Testkampf."
+                  "text": "Im Osten lauern Schleime. Dr\u00fccke Bild-Ab f\u00fcr einen Testkampf."
                 }
               },
               {
                 "type": "quest",
-                "params": { "id": "main_001" }
+                "params": {
+                  "id": "main_001"
+                }
               },
               {
                 "type": "quest_complete",
-                "params": { "id": "main_001" }
+                "params": {
+                  "id": "main_001"
+                }
               },
               {
                 "type": "set_switch",
-                "params": { "id": 1, "value": true }
+                "params": {
+                  "id": 1,
+                  "value": true
+                }
               },
               {
                 "type": "choice",
                 "params": {
-                  "options": ["Zum Kampf!", "Lieber shoppen", "Nur plaudern"],
+                  "options": [
+                    "Zum Kampf!",
+                    "Lieber shoppen",
+                    "Nur plaudern"
+                  ],
                   "variable_id": 10,
                   "branches": [
                     [
                       {
                         "type": "message",
-                        "params": { "text": "Viel Erfolg, Held!" }
+                        "params": {
+                          "text": "Viel Erfolg, Held!"
+                        }
                       },
                       {
                         "type": "quest",
-                        "params": { "id": "hunt_001" }
+                        "params": {
+                          "id": "hunt_001"
+                        }
                       },
                       {
                         "type": "battle",
-                        "params": { "enemy_id": 1 }
+                        "params": {
+                          "enemy_id": 1
+                        }
                       }
                     ],
                     [
                       {
                         "type": "shop",
                         "params": {
-                          "name": "Dorfhändler",
-                          "items": [1]
+                          "name": "Dorfh\u00e4ndler",
+                          "items": [
+                            1
+                          ]
                         }
                       }
                     ],
@@ -101,7 +144,10 @@
                       },
                       {
                         "type": "weather",
-                        "params": { "type": "rain", "power": 4 }
+                        "params": {
+                          "type": "rain",
+                          "power": 4
+                        }
                       }
                     ]
                   ]
@@ -116,8 +162,16 @@
       "id": 4,
       "name": "Felsen",
       "type": 0,
-      "position": [-4, 0.5, 3],
-      "scale": [1, 1, 1],
+      "position": [
+        -4,
+        0.5,
+        3
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "visible": true,
       "mesh": "cube"
     },
@@ -125,8 +179,16 @@
       "id": 5,
       "name": "Sign",
       "type": 4,
-      "position": [0, 0, -5],
-      "scale": [0.5, 0.5, 0.5],
+      "position": [
+        0,
+        0,
+        -5
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ],
       "visible": true,
       "mesh": "cube",
       "event": {
@@ -156,8 +218,16 @@
       "id": 6,
       "name": "Merchant",
       "type": 2,
-      "position": [-3, 0, -1],
-      "scale": [0.6, 1.1, 0.6],
+      "position": [
+        -3,
+        0,
+        -1
+      ],
+      "scale": [
+        0.6,
+        1.1,
+        0.6
+      ],
       "visible": true,
       "mesh": "cube",
       "event": {
@@ -174,11 +244,73 @@
             "commands": [
               {
                 "type": "message",
-                "params": { "text": "Willkommen in meinem Laden!" }
+                "params": {
+                  "text": "Willkommen in meinem Laden!"
+                }
               },
               {
                 "type": "shop",
-                "params": { "name": "Wanderhändler", "items": [1] }
+                "params": {
+                  "name": "Wanderh\u00e4ndler",
+                  "items": [
+                    1
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "name": "PortalForest",
+      "type": 4,
+      "position": [
+        5,
+        0,
+        0
+      ],
+      "scale": [
+        0.6,
+        0.6,
+        0.6
+      ],
+      "visible": true,
+      "mesh": "cube",
+      "event": {
+        "id": 0,
+        "name": "PortalForest",
+        "x": 5,
+        "y": 0,
+        "z": 0,
+        "pages": [
+          {
+            "name": "Go",
+            "trigger": "action",
+            "conditions": {},
+            "commands": [
+              {
+                "type": "message",
+                "params": {
+                  "text": "Zum Waldrand?"
+                }
+              },
+              {
+                "type": "script",
+                "params": {
+                  "code": "Audio.se_play(\"Open1\", 80, 100)"
+                }
+              },
+              {
+                "type": "transfer",
+                "params": {
+                  "map_id": 2,
+                  "x": 0,
+                  "y": 0,
+                  "z": 0,
+                  "direction": 8
+                }
               }
             ]
           }

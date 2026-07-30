@@ -826,6 +826,43 @@ void EditorApp::draw_scripts_tab() {
     if (ImGui::Button("Speichern")) save_script_buffer();
     ImGui::SameLine();
     if (ImGui::Button("Ausführen / Hot-Reload")) reload_scripts();
+    {
+        bool en = debugger_.enabled();
+        if (ImGui::Checkbox("Breakpoints", &en)) {
+            debugger_.set_enabled(en);
+        }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(70);
+        ImGui::InputInt("##bpl", &bp_line_input_);
+        ImGui::SameLine();
+        if (ImGui::Button("BP+")) debugger_.add_breakpoint(bp_line_input_);
+        ImGui::SameLine();
+        if (ImGui::Button("BP-")) debugger_.remove_breakpoint(bp_line_input_);
+        ImGui::SameLine();
+        if (ImGui::Button("Debug Run") && ruby_) {
+            save_script_buffer();
+            debugger_.set_enabled(true);
+            auto r = debugger_.run_file(*ruby_, script_path_);
+            script_output_ =
+                r.ok ? ("Debug: " + r.value + " @" + std::to_string(debugger_.current_line()))
+                     : r.error;
+            for (const auto& l : debugger_.log()) {
+                script_output_ += "\n";
+                script_output_ += l;
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Step") && debugger_.paused() && ruby_) {
+            auto r = debugger_.step(*ruby_);
+            script_output_ =
+                r.ok ? ("Step @" + std::to_string(debugger_.current_line())) : r.error;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Continue") && debugger_.paused() && ruby_) {
+            auto r = debugger_.cont(*ruby_);
+            script_output_ = r.ok ? ("Cont: " + r.value) : r.error;
+        }
+    }
 
     ImGui::BeginChild("script_edit", ImVec2(0, -220), true);
     ImGui::InputTextMultiline("##code", script_buffer_.data(), script_buffer_.size(),

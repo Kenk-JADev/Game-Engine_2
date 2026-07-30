@@ -6,9 +6,8 @@ module Main
 
   def boot
     $demo_booted = "yes"
-    Graphics.frame_rate = 60 if defined?(Graphics)
-    # Audio.bgm_play("Theme1", 80, 100)
-    # Weather.set("none", 0)
+    # BGM startet, sobald Audio-Dateien vorhanden sind
+    Audio.bgm_play("Theme1", 70, 100) if defined?(Audio)
   end
 end
 

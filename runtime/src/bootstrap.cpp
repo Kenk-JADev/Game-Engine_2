@@ -642,6 +642,23 @@ int run_game(const RuntimeOptions& options) {
 #endif
         ctx->config().audio);
 
+    // Register audio clips from project folders (name without extension)
+    {
+        namespace fs = std::filesystem;
+        const char* sub[] = {"bgm", "bgs", "me", "se"};
+        for (const char* s : sub) {
+            const fs::path dir = rs.project.root_dir / rs.project.audio_path / s;
+            std::error_code ec;
+            if (!fs::exists(dir, ec)) continue;
+            for (const auto& ent : fs::directory_iterator(dir, ec)) {
+                if (!ent.is_regular_file()) continue;
+                const auto ext = ent.path().extension().string();
+                if (ext != ".wav" && ext != ".ogg" && ext != ".mp3" && ext != ".WAV") continue;
+                audio->register_clip(ent.path().stem().string(), ent.path().string());
+            }
+        }
+    }
+
     const f32 aspect = static_cast<f32>(wdesc.width) /
                        static_cast<f32>(wdesc.height > 0 ? wdesc.height : 1);
     rs.camera.set_perspective(45.0f, aspect, 0.1f, 500.0f);

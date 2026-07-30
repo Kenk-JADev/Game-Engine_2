@@ -1,0 +1,122 @@
+{
+  "name": "Forest Edge",
+  "objects": [
+    {
+      "id": 1,
+      "name": "Boden",
+      "type": 0,
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "visible": true,
+      "mesh": "plane"
+    },
+    {
+      "id": 2,
+      "name": "Player",
+      "type": 1,
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.6,
+        1.2,
+        0.6
+      ],
+      "visible": true,
+      "mesh": "cube"
+    },
+    {
+      "id": 3,
+      "name": "Tree",
+      "type": 0,
+      "position": [
+        2,
+        0.8,
+        -3
+      ],
+      "scale": [
+        0.8,
+        1.6,
+        0.8
+      ],
+      "visible": true,
+      "mesh": "cube"
+    },
+    {
+      "id": 4,
+      "name": "Tree2",
+      "type": 0,
+      "position": [
+        -3,
+        0.8,
+        2
+      ],
+      "scale": [
+        0.7,
+        1.8,
+        0.7
+      ],
+      "visible": true,
+      "mesh": "cube"
+    },
+    {
+      "id": 5,
+      "name": "PortalHome",
+      "type": 4,
+      "position": [
+        0,
+        0,
+        4
+      ],
+      "scale": [
+        0.6,
+        0.6,
+        0.6
+      ],
+      "visible": true,
+      "mesh": "cube",
+      "event": {
+        "id": 0,
+        "name": "PortalHome",
+        "x": 0,
+        "y": 0,
+        "z": 4,
+        "pages": [
+          {
+            "name": "Go",
+            "trigger": "action",
+            "conditions": {},
+            "commands": [
+              {
+                "type": "message",
+                "params": {
+                  "text": "Zur\u00fcck ins Dorf?"
+                }
+              },
+              {
+                "type": "transfer",
+                "params": {
+                  "map_id": 1,
+                  "x": 0,
+                  "y": 0,
+                  "z": 0,
+                  "direction": 2
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
