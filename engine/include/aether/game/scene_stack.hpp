@@ -22,6 +22,8 @@ enum class GameSceneId {
     Menu,
     Dialog,
     SaveLoad,
+    Battle,
+    Choice,
     GameOver,
 };
 
@@ -47,6 +49,13 @@ struct GameContext {
     int menu_index = 0;
     int title_index = 0;
     int saveload_index = 0;
+    // choice UI
+    std::vector<std::string> choice_labels;
+    int choice_index = 0;
+    int choice_result = -1;
+    bool choice_open = false;
+    // battle finished ack
+    bool battle_done_ack = false;
 };
 
 /**
@@ -165,6 +174,32 @@ public:
     }
     void update(GameContext& ctx) override;
     void draw_overlay(GameContext& ctx) override;
+};
+
+class ChoiceScene final : public IGameScene {
+public:
+    [[nodiscard]] GameSceneId id() const noexcept override {
+        return GameSceneId::Choice;
+    }
+    void on_enter(GameContext& ctx) override;
+    void update(GameContext& ctx) override;
+    void draw_overlay(GameContext& ctx) override;
+};
+
+class BattleScene final : public IGameScene {
+public:
+    [[nodiscard]] GameSceneId id() const noexcept override {
+        return GameSceneId::Battle;
+    }
+    void on_enter(GameContext& ctx) override;
+    void update(GameContext& ctx) override;
+    void draw_overlay(GameContext& ctx) override;
+
+    using TickFn = std::function<void(GameContext&)>;
+    void set_tick(TickFn fn) { tick_ = std::move(fn); }
+
+private:
+    TickFn tick_;
 };
 
 } // namespace aether::game

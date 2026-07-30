@@ -42,6 +42,9 @@
 #include <aether/game/save_system.hpp>
 #include <aether/game/scene_stack.hpp>
 #include <aether/game/shop.hpp>
+#include <aether/game/quest.hpp>
+#include <aether/game/battle.hpp>
+#include <aether/game/ui_hud.hpp>
 #include <aether/anim/animation.hpp>
 #include <aether/plugin/plugin_loader.hpp>
 #include <aether/phys/collision.hpp>

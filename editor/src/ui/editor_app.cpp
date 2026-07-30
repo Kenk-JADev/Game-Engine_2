@@ -5,6 +5,7 @@
 #include "editor_app.hpp"
 #include "export/exporter.hpp"
 
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <sstream>
@@ -470,11 +471,29 @@ void EditorApp::draw_map_tab() {
     static float cam_height = 12.0f;
     ImGui::SliderFloat("Abstand", &cam_dist, 5.0f, 60.0f);
     ImGui::SliderFloat("Höhe", &cam_height, 2.0f, 40.0f);
-    map_camera_.look_at({cam_dist * 0.6f, cam_height, cam_dist}, {0, 0, 0}, {0, 1, 0});
+    static float cam_yaw = 0.4f;
+    ImGui::SliderFloat("Drehung", &cam_yaw, -3.14f, 3.14f);
+    {
+        const float cx = std::cos(cam_yaw) * cam_dist;
+        const float cz = std::sin(cam_yaw) * cam_dist;
+        map_camera_.look_at({cx, cam_height, cz}, {0, 0, 0}, {0, 1, 0});
+    }
+    ImGui::TextWrapped(
+        "Viewport: Mausrad/Slider drehen. Objekt in Liste wählen = Inspector. "
+        "Palette platziert mit Auto-Kollision (kein Collider-Setup).");
     if (renderer_) {
         ImGui::Text("Renderer: %s | drawn %u / culled %u",
                     renderer_->backend() == render::RendererBackend::OpenGL ? "OpenGL" : "Null",
                     renderer_->stats().drawn, renderer_->stats().culled);
+    }
+    // Click-select approximation: buttons for each object near origin
+    if (ImGui::Button("Fokus Auswahl") && selected_id_ != kInvalidEntity) {
+        if (auto* o = map_scene_->find(selected_id_)) {
+            map_camera_.look_at(
+                {o->transform.position.x + cam_dist * 0.5f, cam_height,
+                 o->transform.position.z + cam_dist * 0.5f},
+                o->transform.position, {0, 1, 0});
+        }
     }
     ImGui::EndChild();
 #endif
@@ -667,6 +686,36 @@ void EditorApp::draw_events_tab() {
             if (ImGui::Button("Warten")) {
                 page.commands.push_back(
                     {game::EventCommandType::Wait, {{"frames", 30}}, {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Kampf")) {
+                page.commands.push_back(
+                    {game::EventCommandType::Battle, {{"enemy_id", 1}}, {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Quest")) {
+                page.commands.push_back(
+                    {game::EventCommandType::StartQuest, {{"id", "main_001"}}, {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Shop")) {
+                page.commands.push_back({game::EventCommandType::Shop,
+                                         {{"name", "Händler"}, {"items", {1}}},
+                                         {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Wetter")) {
+                page.commands.push_back(
+                    {game::EventCommandType::SetWeather,
+                     {{"type", "rain"}, {"power", 5}},
+                     {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Auswahl")) {
+                page.commands.push_back(
+                    {game::EventCommandType::Choice,
+                     {{"options", {"Ja", "Nein"}}, {"variable_id", 10}},
+                     {}});
             }
 
             if (event_cmd_index_ >= 0 &&

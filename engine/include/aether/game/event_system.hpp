@@ -1,11 +1,6 @@
 /**
  * @file event_system.hpp
- * @brief Visuelles Eventsystem – Datenmodell (ohne Code-Pflicht für Autoren).
- *
- * Events werden als JSON gespeichert und im Editor als Befehlsliste bearbeitet.
- * Unterstützte Befehlstypen (Phase 1):
- *   message, choice, set_switch, set_variable, conditional,
- *   transfer, camera, weather, animation, quest, shop, battle, script
+ * @brief Visuelles Eventsystem – Datenmodell + Interpreter.
  */
 #pragma once
 
@@ -20,7 +15,6 @@
 
 namespace aether::game {
 
-/** @brief Typ eines Event-Befehls. */
 enum class EventCommandType {
     Nop,
     Message,
@@ -33,6 +27,7 @@ enum class EventCommandType {
     SetWeather,
     PlayAnimation,
     StartQuest,
+    CompleteQuest,
     Shop,
     Battle,
     Script,
@@ -44,13 +39,11 @@ enum class EventCommandType {
 [[nodiscard]] const char* to_string(EventCommandType t) noexcept;
 [[nodiscard]] EventCommandType event_command_type_from_string(std::string_view s) noexcept;
 
-/**
- * @brief Ein Befehl im Event (Parameter als JSON-Objekt).
- */
 struct EventCommand {
     EventCommandType type = EventCommandType::Nop;
     nlohmann::json params = nlohmann::json::object();
-    std::vector<EventCommand> children;
+    std::vector<EventCommand> children; ///< choice branches / conditional true
+    std::vector<EventCommand> else_children; ///< conditional false / choice alt
 };
 
 enum class EventTrigger {
@@ -78,9 +71,6 @@ struct MapEvent {
     std::vector<EventPage> pages;
 };
 
-/**
- * @brief Laufzeit: Switches & Variables (RPG-Maker-Stil).
- */
 class GameState {
 public:
     static constexpr usize kMaxSwitches = 4096;
@@ -88,10 +78,8 @@ public:
 
     void set_switch(u32 id, bool value);
     [[nodiscard]] bool get_switch(u32 id) const noexcept;
-
     void set_variable(u32 id, i32 value);
     [[nodiscard]] i32 get_variable(u32 id) const noexcept;
-
     void clear();
 
 private:
@@ -100,8 +88,17 @@ private:
 };
 
 /**
- * @brief Führt Event-Befehle schrittweise aus (Interpreter).
+ * @brief Pending high-level requests produced by event commands.
+ * Runtime consumes these to open battle/shop/dialog choice UI.
  */
+struct EventRequest {
+    enum class Kind { None, Choice, Weather, QuestStart, QuestComplete, Shop, Battle, Camera } kind =
+        Kind::None;
+    nlohmann::json params = nlohmann::json::object();
+    std::vector<std::string> choice_labels;
+    int choice_result = -1; ///< set by runtime before resume
+};
+
 class EventInterpreter {
 public:
     explicit EventInterpreter(GameState* state);
@@ -109,6 +106,14 @@ public:
     void start(const std::vector<EventCommand>& commands);
     void stop();
     [[nodiscard]] bool is_running() const noexcept { return running_; }
+    [[nodiscard]] bool is_waiting_for_choice() const noexcept {
+        return waiting_choice_;
+    }
+
+    /**
+     * @brief Continue after UI choice (index into choice_labels).
+     */
+    void resume_choice(int index);
 
     bool update();
 
@@ -116,6 +121,12 @@ public:
     [[nodiscard]] const std::vector<std::string>& messages() const noexcept {
         return messages_;
     }
+    void clear_messages() { messages_.clear(); }
+
+    [[nodiscard]] const EventRequest& pending_request() const noexcept {
+        return pending_;
+    }
+    void clear_pending() { pending_ = {}; }
 
     using ScriptHandler = std::function<void(const std::string& code)>;
     using TransferHandler =
@@ -126,16 +137,20 @@ public:
 
 private:
     bool execute(const EventCommand& cmd);
+    void insert_commands(const std::vector<EventCommand>& cmds);
 
     GameState* state_ = nullptr;
     std::vector<EventCommand> commands_;
     usize index_ = 0;
     bool running_ = false;
+    bool waiting_choice_ = false;
+    EventCommand pending_choice_cmd_{};
     EventCommandType last_type_ = EventCommandType::Nop;
     std::vector<std::string> messages_;
     ScriptHandler script_handler_;
     TransferHandler transfer_handler_;
     i32 wait_frames_ = 0;
+    EventRequest pending_{};
 };
 
 void to_json(nlohmann::json& j, const EventCommand& c);

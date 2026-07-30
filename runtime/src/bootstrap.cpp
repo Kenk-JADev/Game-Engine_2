@@ -6,12 +6,15 @@
 
 #include <aether/aether.hpp>
 #include <aether/anim/animation.hpp>
+#include <aether/game/battle.hpp>
 #include <aether/game/inventory.hpp>
 #include <aether/game/map_loader.hpp>
 #include <aether/game/player.hpp>
+#include <aether/game/quest.hpp>
 #include <aether/game/save_system.hpp>
 #include <aether/game/scene_stack.hpp>
 #include <aether/game/shop.hpp>
+#include <aether/game/ui_hud.hpp>
 #include <aether/game/weather.hpp>
 #include <aether/shared/project_descriptor.hpp>
 
@@ -65,6 +68,10 @@ struct RuntimeState {
     game::WeatherSystem weather;
     game::PartyInventory inventory;
     game::SaveSystem saves;
+    game::QuestLog quests;
+    game::Battle battle;
+    bool in_battle = false;
+    game::HudBuilder hud;
     game::GameSceneStack scenes;
     game::GameContext gctx;
     render::Camera camera;
@@ -206,10 +213,15 @@ bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
     return true;
 }
 
+void handle_event_requests(RuntimeState& rs);
+
 void start_new_game(RuntimeState& rs, render::Renderer* renderer) {
     rs.game_state.clear();
     rs.inventory.setup_from_database(rs.database);
     rs.weather.clear(0.0f);
+    rs.quests = game::QuestLog{};
+    rs.quests.load_defaults();
+    rs.in_battle = false;
     rs.playtime = 0;
     const render::Vec3 start{static_cast<f32>(rs.project.start.x), 0.f,
                              static_cast<f32>(rs.project.start.z)};
@@ -217,9 +229,151 @@ void start_new_game(RuntimeState& rs, render::Renderer* renderer) {
     rs.scenes.clear();
     rs.scenes.push(std::make_unique<game::MapScene>(), rs.gctx);
     rs.gctx.status_line = "Neues Spiel";
-    // welcome potion
     if (!rs.database.items.empty()) {
         rs.inventory.gain_item(rs.database.items.front().id, 3);
+    }
+    rs.quests.start("main_001");
+}
+
+void start_battle(RuntimeState& rs, u32 enemy_id) {
+    if (rs.inventory.party().empty() || rs.database.enemies.empty()) {
+        return;
+    }
+    const game::EnemyData* ed = &rs.database.enemies.front();
+    for (const auto& e : rs.database.enemies) {
+        if (e.id == enemy_id) {
+            ed = &e;
+            break;
+        }
+    }
+    const game::SkillData* sk =
+        rs.database.skills.empty() ? nullptr : &rs.database.skills.front();
+    rs.battle.start(rs.inventory.party().front(), *ed, sk);
+    rs.battle.set_log([](const std::string& s) { core::log_info("Battle", s); });
+    rs.in_battle = true;
+
+    auto bs = std::make_unique<game::BattleScene>();
+    bs->set_tick([&rs](game::GameContext& ctx) {
+        if (!rs.in_battle || !ctx.input) {
+            return;
+        }
+        rs.battle.update(*ctx.input);
+        ctx.status_line = rs.battle.status_line();
+        if (rs.battle.finished()) {
+            if (ctx.input->was_pressed("confirm") || ctx.input->was_pressed("cancel") ||
+                ctx.battle_done_ack) {
+                const auto res = rs.battle.result();
+                if (res.won) {
+                    rs.inventory.gain_exp(res.exp);
+                    rs.inventory.gain_gold(res.gold);
+                    // sync party HP from battle
+                    if (!rs.inventory.party().empty()) {
+                        rs.inventory.party()[0].hp = rs.battle.hero().hp;
+                        rs.inventory.party()[0].mp = rs.battle.hero().mp;
+                    }
+                    rs.quests.advance("hunt_001");
+                    rs.quests.complete("hunt_001");
+                } else if (!res.fled && !rs.inventory.party().empty()) {
+                    rs.inventory.party()[0].hp = 1; // soft fail
+                }
+                rs.in_battle = false;
+                rs.scenes.pop(ctx);
+            }
+        }
+    });
+    rs.scenes.push(std::move(bs), rs.gctx);
+}
+
+void handle_event_requests(RuntimeState& rs) {
+    const auto& req = rs.interpreter.pending_request();
+    if (req.kind == game::EventRequest::Kind::None) {
+        return;
+    }
+    switch (req.kind) {
+    case game::EventRequest::Kind::Choice:
+        rs.gctx.choice_labels = req.choice_labels;
+        rs.gctx.choice_index = 0;
+        rs.gctx.choice_result = -1;
+        rs.gctx.choice_open = true;
+        rs.scenes.push(std::make_unique<game::ChoiceScene>(), rs.gctx);
+        break;
+    case game::EventRequest::Kind::Weather: {
+        const auto type =
+            game::WeatherSystem::from_string(req.params.value("type", "rain"));
+        const f32 power = req.params.value("power", 5.0f);
+        rs.weather.set(type, power, req.params.value("frames", 0) / 60.0f);
+        rs.interpreter.clear_pending();
+        break;
+    }
+    case game::EventRequest::Kind::QuestStart:
+        rs.quests.start(req.params.value("id", ""));
+        rs.interpreter.clear_pending();
+        break;
+    case game::EventRequest::Kind::QuestComplete: {
+        const std::string id = req.params.value("id", "");
+        if (rs.quests.complete(id)) {
+            if (const auto* def = rs.quests.find_def(id)) {
+                rs.inventory.gain_exp(def->exp_reward);
+                rs.inventory.gain_gold(def->gold_reward);
+                if (def->item_reward_id && def->item_reward_count > 0) {
+                    rs.inventory.gain_item(def->item_reward_id, def->item_reward_count);
+                }
+            }
+        }
+        rs.interpreter.clear_pending();
+        break;
+    }
+    case game::EventRequest::Kind::Shop: {
+        game::Shop shop;
+        shop.set_name(req.params.value("name", "Händler"));
+        std::vector<game::ShopOffer> offers;
+        if (req.params.contains("items") && req.params["items"].is_array()) {
+            for (const auto& it : req.params["items"]) {
+                offers.push_back({it.get<u32>(), -1});
+            }
+        } else if (!rs.database.items.empty()) {
+            offers.push_back({rs.database.items.front().id, -1});
+        }
+        shop.set_offers(offers);
+        // auto-buy first for headless; interactive would need UI – open as dialog list
+        std::vector<std::string> lines;
+        lines.push_back(shop.name() + " – Gold: " + std::to_string(rs.inventory.gold()));
+        for (usize i = 0; i < shop.offers().size(); ++i) {
+            const auto& o = shop.offers()[i];
+            std::string name = "Item#" + std::to_string(o.item_id);
+            for (const auto& d : rs.database.items) {
+                if (d.id == o.item_id) {
+                    name = d.name;
+                    break;
+                }
+            }
+            lines.push_back(name + " – " + std::to_string(shop.price_of(o, rs.database)) +
+                            " G");
+        }
+        // buy first offer if affordable
+        if (!offers.empty()) {
+            shop.buy(0, rs.inventory, rs.database);
+            lines.push_back("(Gekauft: erstes Angebot)");
+        }
+        open_dialog(rs, std::move(lines));
+        rs.interpreter.clear_pending();
+        break;
+    }
+    case game::EventRequest::Kind::Battle: {
+        const u32 eid = req.params.value("enemy_id", 1u);
+        rs.interpreter.clear_pending();
+        start_battle(rs, eid);
+        break;
+    }
+    case game::EventRequest::Kind::Camera:
+        // soft: snap follow camera offset
+        rs.follow_cam.set_offsets(req.params.value("height", 10.0f),
+                                  req.params.value("back", 12.0f));
+        rs.interpreter.clear_pending();
+        break;
+    default:
+        rs.interpreter.clear_pending();
+        break;
     }
 }
 
@@ -327,8 +481,30 @@ void push_menu(RuntimeState& rs, render::Renderer* renderer) {
     rs.scenes.push(std::move(menu), rs.gctx);
 }
 
+void pump_interpreter(RuntimeState& rs) {
+    if (!rs.interpreter.is_running()) {
+        return;
+    }
+    if (rs.interpreter.is_waiting_for_choice()) {
+        return;
+    }
+    rs.interpreter.update();
+    if (!rs.interpreter.messages().empty() && !rs.gctx.dialog_open) {
+        auto msgs = rs.interpreter.messages();
+        rs.interpreter.clear_messages();
+        open_dialog(rs, std::move(msgs));
+        return;
+    }
+    if (rs.interpreter.pending_request().kind != game::EventRequest::Kind::None) {
+        handle_event_requests(rs);
+    }
+}
+
 void update_map_gameplay(RuntimeState& rs, input::InputManager& input, f64 fixed_dt) {
     if (!rs.map_active || !rs.scene) {
+        return;
+    }
+    if (rs.in_battle) {
         return;
     }
     // Don't move while overlays open
@@ -337,11 +513,7 @@ void update_map_gameplay(RuntimeState& rs, input::InputManager& input, f64 fixed
     }
 
     if (rs.interpreter.is_running()) {
-        rs.interpreter.update();
-        // collect messages into dialog
-        if (!rs.interpreter.messages().empty() && !rs.gctx.dialog_open) {
-            open_dialog(rs, rs.interpreter.messages());
-        }
+        pump_interpreter(rs);
         return;
     }
 
@@ -366,23 +538,15 @@ void update_map_gameplay(RuntimeState& rs, input::InputManager& input, f64 fixed
                         load_map_into(rs, rs.gctx.renderer, map_id, &pos);
                     });
                 rs.interpreter.start(obj->map_event->pages[0].commands);
-                // Run until wait or end; messages shown via dialog
-                while (rs.interpreter.is_running()) {
-                    const auto before = rs.interpreter.messages().size();
-                    rs.interpreter.update();
-                    if (rs.interpreter.messages().size() > before) {
-                        // pause interpreter by opening dialog – copy messages
-                        open_dialog(rs, rs.interpreter.messages());
-                        break;
-                    }
-                    if (!rs.interpreter.is_running()) {
-                        break;
-                    }
-                    // safety: break infinite
-                    break;
-                }
+                pump_interpreter(rs);
             }
         }
+    }
+
+    // Debug/demo: F-key via page_down starts hunt battle if enemy nearby flag
+    if (input.was_pressed("page_down") && !rs.database.enemies.empty()) {
+        rs.quests.start("hunt_001");
+        start_battle(rs, rs.database.enemies.front().id);
     }
 
     if (input.was_pressed("menu")) {
@@ -584,10 +748,24 @@ int run_game(const RuntimeOptions& options) {
             running = false;
         }
 
-        // Dialog finished → pop
+        // Dialog finished → pop & resume interpreter
         if (rs.scenes.current() &&
             rs.scenes.current()->id() == game::GameSceneId::Dialog && !rs.gctx.dialog_open) {
             rs.scenes.pop(rs.gctx);
+            if (rs.interpreter.is_running()) {
+                pump_interpreter(rs);
+            }
+        }
+
+        // Choice finished → resume interpreter
+        if (rs.scenes.current() &&
+            rs.scenes.current()->id() == game::GameSceneId::Choice && !rs.gctx.choice_open) {
+            const int result = rs.gctx.choice_result;
+            rs.scenes.pop(rs.gctx);
+            if (rs.interpreter.is_waiting_for_choice()) {
+                rs.interpreter.resume_choice(result);
+                pump_interpreter(rs);
+            }
         }
 
         ctx->time().drain_fixed_steps([&](f64 fixed_dt) {
@@ -595,26 +773,34 @@ int run_game(const RuntimeOptions& options) {
             update_map_gameplay(rs, input, fixed_dt);
         });
 
-        if (rs.map_active) {
+        if (rs.map_active && !rs.in_battle) {
             rs.follow_cam.update(rs.player.position(), dt);
             rs.follow_cam.apply(rs.camera);
         }
 
         rs.scenes.draw_overlay(rs.gctx);
-        if (frames % 60 == 0 && !rs.gctx.status_line.empty()) {
-            core::log_debug("UI", rs.gctx.status_line);
+
+        // HUD
+        rs.hud.set_party(&rs.inventory);
+        rs.hud.set_quests(&rs.quests);
+        rs.hud.set_battle(rs.in_battle ? &rs.battle : nullptr);
+        const auto hud_state = rs.hud.build(rs.gctx);
+        if (frames % 60 == 0 && !hud_state.toast.empty()) {
+            core::log_debug("UI", hud_state.toast);
         }
 
         if (renderer) {
             renderer->set_clear_color(rs.weather.clear_color_mod(base_clear));
             std::vector<render::Renderable> items;
-            if (rs.map_active && rs.scene) {
+            if (rs.map_active && rs.scene && !rs.in_battle) {
                 rs.scene->collect_renderables(items);
             }
             renderer->begin_frame();
-            if (rs.map_active) {
+            if (rs.map_active && !rs.in_battle) {
                 renderer->draw(rs.camera, items);
             }
+            // ImGui HUD if available (editor links imgui; runtime may not)
+            (void)game::HudBuilder::draw_imgui(hud_state);
             renderer->end_frame();
         }
         if (window) {

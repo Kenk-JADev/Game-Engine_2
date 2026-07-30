@@ -5,16 +5,8 @@
       "id": 1,
       "name": "Boden",
       "type": 0,
-      "position": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
+      "position": [0, 0, 0],
+      "scale": [1, 1, 1],
       "visible": true,
       "mesh": "plane"
     },
@@ -22,16 +14,8 @@
       "id": 2,
       "name": "Player",
       "type": 1,
-      "position": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        0.6,
-        1.2,
-        0.6
-      ],
+      "position": [0, 0, 0],
+      "scale": [0.6, 1.2, 0.6],
       "visible": true,
       "mesh": "cube"
     },
@@ -39,16 +23,8 @@
       "id": 3,
       "name": "Elder",
       "type": 2,
-      "position": [
-        3,
-        0,
-        -2
-      ],
-      "scale": [
-        0.6,
-        1.2,
-        0.6
-      ],
+      "position": [3, 0, -2],
+      "scale": [0.6, 1.2, 0.6],
       "visible": true,
       "mesh": "cube",
       "event": {
@@ -66,14 +42,69 @@
               {
                 "type": "message",
                 "params": {
-                  "text": "Willkommen in Aether Demo!"
+                  "text": "Willkommen in Aether Demo! Ich bin der Älteste."
                 }
               },
               {
-                "type": "set_switch",
+                "type": "message",
                 "params": {
-                  "id": 1,
-                  "value": true
+                  "text": "Im Osten lauern Schleime. Drücke Bild-Ab für einen Testkampf."
+                }
+              },
+              {
+                "type": "quest",
+                "params": { "id": "main_001" }
+              },
+              {
+                "type": "quest_complete",
+                "params": { "id": "main_001" }
+              },
+              {
+                "type": "set_switch",
+                "params": { "id": 1, "value": true }
+              },
+              {
+                "type": "choice",
+                "params": {
+                  "options": ["Zum Kampf!", "Lieber shoppen", "Nur plaudern"],
+                  "variable_id": 10,
+                  "branches": [
+                    [
+                      {
+                        "type": "message",
+                        "params": { "text": "Viel Erfolg, Held!" }
+                      },
+                      {
+                        "type": "quest",
+                        "params": { "id": "hunt_001" }
+                      },
+                      {
+                        "type": "battle",
+                        "params": { "enemy_id": 1 }
+                      }
+                    ],
+                    [
+                      {
+                        "type": "shop",
+                        "params": {
+                          "name": "Dorfhändler",
+                          "items": [1]
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "type": "message",
+                        "params": {
+                          "text": "Komm wieder, wenn du bereit bist."
+                        }
+                      },
+                      {
+                        "type": "weather",
+                        "params": { "type": "rain", "power": 4 }
+                      }
+                    ]
+                  ]
                 }
               }
             ]
@@ -85,16 +116,8 @@
       "id": 4,
       "name": "Felsen",
       "type": 0,
-      "position": [
-        -4,
-        0.5,
-        3
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
+      "position": [-4, 0.5, 3],
+      "scale": [1, 1, 1],
       "visible": true,
       "mesh": "cube"
     },
@@ -102,16 +125,8 @@
       "id": 5,
       "name": "Sign",
       "type": 4,
-      "position": [
-        0,
-        0,
-        -5
-      ],
-      "scale": [
-        0.5,
-        0.5,
-        0.5
-      ],
+      "position": [0, 0, -5],
+      "scale": [0.5, 0.5, 0.5],
       "visible": true,
       "mesh": "cube",
       "event": {
@@ -129,8 +144,41 @@
               {
                 "type": "message",
                 "params": {
-                  "text": "Norden: Wald  |  Osten: Stadt"
+                  "text": "Norden: Wald  |  Osten: Stadt  |  Bild-Ab: Kampf"
                 }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "name": "Merchant",
+      "type": 2,
+      "position": [-3, 0, -1],
+      "scale": [0.6, 1.1, 0.6],
+      "visible": true,
+      "mesh": "cube",
+      "event": {
+        "id": 0,
+        "name": "Merchant",
+        "x": -3,
+        "y": 0,
+        "z": -1,
+        "pages": [
+          {
+            "name": "Shop",
+            "trigger": "action",
+            "conditions": {},
+            "commands": [
+              {
+                "type": "message",
+                "params": { "text": "Willkommen in meinem Laden!" }
+              },
+              {
+                "type": "shop",
+                "params": { "name": "Wanderhändler", "items": [1] }
               }
             ]
           }

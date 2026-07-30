@@ -154,6 +154,64 @@ void MapScene::draw_overlay(GameContext& ctx) {
     }
 }
 
+// ---- Choice -----------------------------------------------------------------
+
+void ChoiceScene::on_enter(GameContext& ctx) {
+    ctx.choice_open = true;
+    ctx.choice_index = 0;
+    ctx.choice_result = -1;
+    core::log_info("Scene", "Choice");
+}
+
+void ChoiceScene::update(GameContext& ctx) {
+    if (!ctx.input || ctx.choice_labels.empty()) {
+        return;
+    }
+    const int n = static_cast<int>(ctx.choice_labels.size());
+    if (ctx.input->was_pressed("up")) {
+        ctx.choice_index = (ctx.choice_index + n - 1) % n;
+    }
+    if (ctx.input->was_pressed("down")) {
+        ctx.choice_index = (ctx.choice_index + 1) % n;
+    }
+    if (ctx.input->was_pressed("confirm")) {
+        ctx.choice_result = ctx.choice_index;
+        ctx.choice_open = false;
+    }
+    if (ctx.input->was_pressed("cancel")) {
+        ctx.choice_result = n - 1;
+        ctx.choice_open = false;
+    }
+}
+
+void ChoiceScene::draw_overlay(GameContext& ctx) {
+    std::string s = "AUSWAHL";
+    for (int i = 0; i < static_cast<int>(ctx.choice_labels.size()); ++i) {
+        s += (i == ctx.choice_index ? " > " : "   ");
+        s += ctx.choice_labels[static_cast<usize>(i)];
+    }
+    ctx.status_line = s;
+}
+
+// ---- Battle scene shell -----------------------------------------------------
+
+void BattleScene::on_enter(GameContext& ctx) {
+    ctx.battle_done_ack = false;
+    core::log_info("Scene", "Battle");
+}
+
+void BattleScene::update(GameContext& ctx) {
+    if (tick_) {
+        tick_(ctx);
+    }
+}
+
+void BattleScene::draw_overlay(GameContext& ctx) {
+    if (ctx.status_line.empty()) {
+        ctx.status_line = "KAMPF";
+    }
+}
+
 // ---- Stack ------------------------------------------------------------------
 
 void GameSceneStack::clear() {

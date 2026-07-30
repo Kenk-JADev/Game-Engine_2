@@ -48,6 +48,9 @@ set(AETHER_ENGINE_SOURCES
     src/game/save_system.cpp
     src/game/scene_stack.cpp
     src/game/shop.cpp
+    src/game/quest.cpp
+    src/game/battle.cpp
+    src/game/ui_hud.cpp
     # Animation
     src/anim/animation.cpp
     # Plugins

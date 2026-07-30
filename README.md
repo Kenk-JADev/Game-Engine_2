@@ -94,17 +94,20 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Player | WASD-Bewegung, Interaktion, Follow-Kamera |
 | Weather | Rain/Storm/Snow/Fog Tint |
 | Map | JSON laden/speichern, Default-Karte |
-| Scenes | Titel, Map, Menü, Dialog, Save/Load-Stack |
+| Scenes | Titel, Map, Menü, Dialog, Choice, Battle, Save/Load |
 | Inventory | Gold, Items, Party, EXP/Level |
 | Save/Load | JSON-Slots unter `saves/` |
-| Shop | Kaufen/Verkaufen |
-| Events | Interpreter (Message, Switch, Variable, Transfer, Script, …) |
+| Shop | Kaufen/Verkaufen (Event + Klasse) |
+| Battle | Turn-based Kampf |
+| Quests | QuestLog + Belohnungen |
+| HUD | Status/Dialog/Kampf/Quest-Panels |
+| Events | Choice, Battle, Shop, Weather, Quest, … |
 | Database | actors/enemies/items/skills/system JSON |
 | Plugins | `plugin.json` + `main.rb` |
 | Export | Spielpaket mit Game-Binary |
-| Editor UI | ImGui (wenn GL) / Headless-CLI |
-| Runtime | Titel → Map → Menü/Dialog/Save |
-| Tests | 15 automatisierte Tests |
+| Editor UI | ImGui-Tabs, Event-Palette, Viewport-Kamera |
+| Runtime | Titel → Map → Menü/Dialog/Kampf/Save |
+| Tests | 16 automatisierte Tests |
 
 ## Vendored Third-Party
 
