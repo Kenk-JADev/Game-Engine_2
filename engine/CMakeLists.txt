@@ -53,6 +53,7 @@ set(AETHER_ENGINE_SOURCES
     src/game/quest.cpp
     src/game/battle.cpp
     src/game/ui_hud.cpp
+    src/game/event_runner.cpp
     # Animation
     src/anim/animation.cpp
     # Plugins

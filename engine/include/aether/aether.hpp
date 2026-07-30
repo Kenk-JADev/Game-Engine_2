@@ -45,6 +45,7 @@
 #include <aether/game/quest.hpp>
 #include <aether/game/battle.hpp>
 #include <aether/game/ui_hud.hpp>
+#include <aether/game/event_runner.hpp>
 #include <aether/anim/animation.hpp>
 #include <aether/plugin/plugin_loader.hpp>
 #include <aether/phys/collision.hpp>

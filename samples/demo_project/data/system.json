@@ -3,5 +3,7 @@
   "start_map_id": 1,
   "start_x": 0,
   "start_y": 0,
-  "start_z": 0
+  "start_z": 0,
+  "title_bgm": "Theme1",
+  "victory_me": "Victory"
 }

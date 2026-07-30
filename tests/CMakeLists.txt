@@ -26,6 +26,7 @@ aether_add_unit_test(aether_save_inv_test    unit/save_inv_test.cpp)
 aether_add_unit_test(aether_battle_quest_test unit/battle_quest_test.cpp)
 aether_add_unit_test(aether_gltf_test unit/gltf_script_test.cpp)
 aether_add_unit_test(aether_pick_test unit/pick_test.cpp)
+aether_add_unit_test(aether_event_runner_test unit/event_runner_test.cpp)
 
 add_executable(aether_highlighter_test unit/highlighter_test.cpp
     ${CMAKE_SOURCE_DIR}/editor/src/scripts/script_highlighter.cpp)

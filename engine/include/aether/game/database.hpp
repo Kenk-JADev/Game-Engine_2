@@ -1,8 +1,6 @@
 /**
  * @file database.hpp
- * @brief Spiel-Datenbank (Helden, Gegner, Items, Skills, …) als JSON.
- *
- * Der Editor zeigt Tabs – keine Engine-Components.
+ * @brief Spiel-Datenbank (Helden, Klassen, Gegner, Items, Skills, …) als JSON.
  */
 #pragma once
 
@@ -16,9 +14,21 @@
 
 namespace aether::game {
 
+struct ClassData {
+    u32 id = 0;
+    std::string name = "Adventurer";
+    i32 base_hp = 100;
+    i32 base_mp = 50;
+    i32 base_attack = 10;
+    i32 base_defense = 10;
+    i32 base_speed = 10;
+    std::vector<u32> skill_ids;
+};
+
 struct ActorData {
     ActorId id = 0;
     std::string name = "Actor";
+    u32 class_id = 1;
     std::string class_name = "Adventurer";
     i32 max_hp = 100;
     i32 max_mp = 50;
@@ -58,37 +68,46 @@ struct SkillData {
     std::string scope = "one_enemy";
 };
 
+struct AnimationData {
+    u32 id = 0;
+    std::string name = "Animation";
+    std::string graphic;
+    i32 frames = 12;
+    f32 speed = 1.0f;
+};
+
 struct SystemData {
     std::string game_title = "AetherRPG";
     std::vector<std::string> start_bgm;
     u32 start_map_id = 1;
     f32 start_x = 0, start_y = 0, start_z = 0;
+    std::string title_bgm = "Theme1";
+    std::string battle_bgm;
+    std::string victory_me = "Victory";
 };
 
-/**
- * @brief Gesamte Datenbank eines Projekts.
- */
 struct Database {
+    std::vector<ClassData> classes;
     std::vector<ActorData> actors;
     std::vector<EnemyData> enemies;
     std::vector<ItemData> items;
     std::vector<SkillData> skills;
+    std::vector<AnimationData> animations;
     SystemData system;
 
-    /**
-     * @brief Lädt JSON-Datenbankdateien aus einem Projekt-data-Ordner.
-     */
     [[nodiscard]] static Result<Database> load_from_directory(
         const std::filesystem::path& data_dir);
 
-    /**
-     * @brief Speichert die Datenbank als JSON-Dateien im data-Ordner.
-     */
     [[nodiscard]] Result<void> save_to_directory(
         const std::filesystem::path& data_dir) const;
 
-    /** @brief Legt leere Standard-Einträge an (neues Projekt). */
     static Database make_default();
+
+    [[nodiscard]] const ClassData* find_class(u32 id) const;
+    [[nodiscard]] const ActorData* find_actor(u32 id) const;
+    [[nodiscard]] const EnemyData* find_enemy(u32 id) const;
+    [[nodiscard]] const ItemData* find_item(u32 id) const;
+    [[nodiscard]] const SkillData* find_skill(u32 id) const;
 };
 
 } // namespace aether::game

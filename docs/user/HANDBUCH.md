@@ -36,12 +36,13 @@ Binaries: `build/bin/AetherEditor`, `build/bin/Game`
 ### Karte bedienen
 
 1. Objekt in der **Palette** wählen  
-2. **Platzier-Modus** aktivieren → **LMB im Viewport** setzt mit Grid-Snap  
-   oder „Hier platzieren“ für automatische Position  
-3. **LMB ohne Platzier-Modus** = 3D-Auswahl (Ray-Picking)  
+2. **Platzier-Modus** → **LMB im Viewport** setzt mit Grid-Snap  
+3. **LMB** = auswählen; mit **Ziehen (LMB)** Objekt auf dem Boden verschieben  
 4. **RMB-Ziehen** = Orbit, **Mausrad** = Zoom  
-5. Optional: glTF/OBJ-Pfad auf Auswahl laden  
-6. **Navigation backen**, **Rückgängig/Wiederholen**
+5. Optional: glTF/OBJ auf Auswahl laden  
+6. **Navigation backen**, Undo/Redo  
+
+**Gamepad:** A = Bestätigen, B = Abbrechen, D-Pad/Stick = Bewegung, Start/Y ≈ Menü.
 
 ### Events (ohne Code)
 

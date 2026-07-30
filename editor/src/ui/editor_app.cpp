@@ -421,6 +421,7 @@ void EditorApp::draw_map_tab() {
     ImGui::TextWrapped("Klick im Viewport platziert (Platzier-Modus) oder wählt aus.");
     ImGui::ListBox("##pal", &palette_index_, items, IM_ARRAYSIZE(items));
     ImGui::Checkbox("Platzier-Modus", &place_mode_);
+    ImGui::Checkbox("Ziehen (LMB)", &drag_move_);
     if (ImGui::Button("Hier platzieren", ImVec2(-1, 0))) {
         push_undo("Platzieren");
         place_palette_object(items[palette_index_]);
@@ -488,14 +489,37 @@ void EditorApp::draw_map_tab() {
                 cam_height_ = std::clamp(cam_height_ - io.MouseDelta.y * 0.05f, 1.0f, 50.0f);
             }
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                const float lx = io.MousePos.x - rmin.x;
-                const float ly = io.MousePos.y - rmin.y;
-                // Map local viewport click → full display coords used by 3D camera
                 const float sx = io.MousePos.x;
                 const float sy = io.MousePos.y;
-                (void)lx;
-                (void)ly;
                 viewport_pick(sx, sy, io.DisplaySize.x, io.DisplaySize.y);
+                if (!place_mode_ && selected_id_ != kInvalidEntity && drag_move_) {
+                    dragging_ = true;
+                    push_undo("Verschieben");
+                }
+            }
+            if (dragging_ && ImGui::IsMouseDragging(ImGuiMouseButton_Left) &&
+                selected_id_ != kInvalidEntity) {
+                render::Vec3 origin, dir;
+                map_camera_.screen_to_ray(io.MousePos.x, io.MousePos.y, io.DisplaySize.x,
+                                          io.DisplaySize.y, origin, dir);
+                render::Vec3 hit;
+                if (render::Camera::ray_plane_y(origin, dir, 0.0f, hit)) {
+                    if (grid_snap_) {
+                        hit.x = snap_value(hit.x, grid_size_);
+                        hit.z = snap_value(hit.z, grid_size_);
+                    }
+                    if (auto* o = map_scene_->find(selected_id_)) {
+                        o->transform.position.x = hit.x;
+                        o->transform.position.z = hit.z;
+                        if (o->collision_id) {
+                            map_scene_->collision().set_transform(o->collision_id,
+                                                                  o->transform);
+                        }
+                    }
+                }
+            }
+            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                dragging_ = false;
             }
         }
 
@@ -573,8 +597,9 @@ void EditorApp::draw_database_tab() {
         ImGui::TextUnformatted("Bitte zuerst ein Projekt öffnen.");
         return;
     }
-    const char* subs[] = {"Helden", "Gegner", "Items", "Skills", "System"};
-    for (int i = 0; i < 5; ++i) {
+    const char* subs[] = {"Helden", "Klassen", "Gegner", "Items", "Skills", "Animationen",
+                          "System"};
+    for (int i = 0; i < 7; ++i) {
         if (i) ImGui::SameLine();
         if (ImGui::RadioButton(subs[i], db_subtab_ == i)) {
             db_subtab_ = i;
@@ -609,6 +634,8 @@ void EditorApp::draw_database_tab() {
             char n[128];
             std::snprintf(n, sizeof(n), "%s", a.name.c_str());
             if (ImGui::InputText("Name", n, sizeof(n))) a.name = n;
+            int cid = static_cast<int>(a.class_id);
+            if (ImGui::InputInt("Klassen-ID", &cid)) a.class_id = static_cast<aether::u32>(cid);
             ImGui::InputInt("Max HP", &a.max_hp);
             ImGui::InputInt("Max MP", &a.max_mp);
             ImGui::InputInt("Angriff", &a.attack);
@@ -616,6 +643,17 @@ void EditorApp::draw_database_tab() {
             ImGui::InputInt("Agilität", &a.speed);
         });
     } else if (db_subtab_ == 1) {
+        list_and_edit(database_.classes, [](game::ClassData& c) {
+            char n[128];
+            std::snprintf(n, sizeof(n), "%s", c.name.c_str());
+            if (ImGui::InputText("Name", n, sizeof(n))) c.name = n;
+            ImGui::InputInt("Basis HP", &c.base_hp);
+            ImGui::InputInt("Basis MP", &c.base_mp);
+            ImGui::InputInt("Angriff", &c.base_attack);
+            ImGui::InputInt("Verteidigung", &c.base_defense);
+            ImGui::InputInt("Agilität", &c.base_speed);
+        });
+    } else if (db_subtab_ == 2) {
         list_and_edit(database_.enemies, [](game::EnemyData& e) {
             char n[128];
             std::snprintf(n, sizeof(n), "%s", e.name.c_str());
@@ -626,7 +664,7 @@ void EditorApp::draw_database_tab() {
             ImGui::InputInt("EXP", &e.exp);
             ImGui::InputInt("Gold", &e.gold);
         });
-    } else if (db_subtab_ == 2) {
+    } else if (db_subtab_ == 3) {
         list_and_edit(database_.items, [](game::ItemData& it) {
             char n[128];
             std::snprintf(n, sizeof(n), "%s", it.name.c_str());
@@ -636,13 +674,21 @@ void EditorApp::draw_database_tab() {
             ImGui::InputInt("HP heilen", &it.hp_recover);
             ImGui::InputInt("MP heilen", &it.mp_recover);
         });
-    } else if (db_subtab_ == 3) {
+    } else if (db_subtab_ == 4) {
         list_and_edit(database_.skills, [](game::SkillData& s) {
             char n[128];
             std::snprintf(n, sizeof(n), "%s", s.name.c_str());
             if (ImGui::InputText("Name", n, sizeof(n))) s.name = n;
             ImGui::InputInt("MP-Kosten", &s.mp_cost);
             ImGui::InputInt("Stärke", &s.power);
+        });
+    } else if (db_subtab_ == 5) {
+        list_and_edit(database_.animations, [](game::AnimationData& a) {
+            char n[128];
+            std::snprintf(n, sizeof(n), "%s", a.name.c_str());
+            if (ImGui::InputText("Name", n, sizeof(n))) a.name = n;
+            ImGui::InputInt("Frames", &a.frames);
+            ImGui::SliderFloat("Tempo", &a.speed, 0.1f, 3.0f);
         });
     } else {
         char t[256];
@@ -651,6 +697,9 @@ void EditorApp::draw_database_tab() {
         int mid = static_cast<int>(database_.system.start_map_id);
         if (ImGui::InputInt("Start-Map-ID", &mid))
             database_.system.start_map_id = static_cast<aether::u32>(mid);
+        char bgm[128];
+        std::snprintf(bgm, sizeof(bgm), "%s", database_.system.title_bgm.c_str());
+        if (ImGui::InputText("Title-BGM", bgm, sizeof(bgm))) database_.system.title_bgm = bgm;
     }
 
     if (ImGui::Button("Datenbank speichern")) {

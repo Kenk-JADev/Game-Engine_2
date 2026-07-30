@@ -117,6 +117,8 @@ private:
     bool grid_snap_ = true;
     float grid_size_ = 1.0f;
     bool place_mode_ = false; ///< next viewport click places palette object
+    bool drag_move_ = false;
+    bool dragging_ = false;
     float cam_dist_ = 18.0f;
     float cam_height_ = 12.0f;
     float cam_yaw_ = 0.4f;

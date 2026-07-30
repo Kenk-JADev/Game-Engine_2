@@ -8,5 +8,15 @@
     "exp": 8,
     "gold": 4,
     "battler_graphic": ""
+  },
+  {
+    "id": 2,
+    "name": "Bat",
+    "max_hp": 30,
+    "attack": 10,
+    "defense": 2,
+    "exp": 12,
+    "gold": 6,
+    "battler_graphic": ""
   }
 ]

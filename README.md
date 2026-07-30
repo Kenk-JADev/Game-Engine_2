@@ -112,8 +112,11 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Undo | Karteneditor Snapshot-Undo/Redo |
 | Handbuch | docs/user/HANDBUCH.md |
 | Demo | 2 Karten, WAV-Audio, Portale, NPCs |
-| Editor-Viewport | Ray-Picking, Orbit/Zoom, Grid-Snap, Platzier-Modus |
-| Tests | 19 automatisierte Tests |
+| Editor-Viewport | Ray-Picking, Drag-Move, Orbit/Zoom, Grid-Snap |
+| Events | Autorun, PlayerTouch, Fade bei Transfer |
+| Database | + Klassen, Animationen |
+| Input | Gamepad (A/B/Dpad/Stick) |
+| Tests | 20 automatisierte Tests |
 
 ## Vendored Third-Party
 

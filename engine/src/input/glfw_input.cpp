@@ -5,6 +5,9 @@
 #include <aether/input/input_manager.hpp>
 #include <aether/core/logger.hpp>
 
+#include <array>
+#include <cmath>
+
 #if defined(AETHER_WITH_GLFW)
 #  include <GLFW/glfw3.h>
 #endif
@@ -147,6 +150,56 @@ void input_detach_glfw_callbacks(void* native_glfw_window) {
     glfwSetCharCallback(win, nullptr);
 #else
     (void)native_glfw_window;
+#endif
+}
+
+void input_poll_gamepads(
+    f32 deadzone, f32& lx, f32& ly,
+    std::array<ButtonState, static_cast<usize>(GamepadButton::Count)>& pad,
+    void (*update_btn)(ButtonState&, bool)) {
+#if defined(AETHER_WITH_GLFW)
+    lx = 0.0f;
+    ly = 0.0f;
+    // Find first present joystick with gamepad mapping
+    for (int jid = GLFW_JOYSTICK_1; jid <= GLFW_JOYSTICK_LAST; ++jid) {
+        if (!glfwJoystickPresent(jid) || !glfwJoystickIsGamepad(jid)) {
+            continue;
+        }
+        GLFWgamepadstate st{};
+        if (glfwGetGamepadState(jid, &st) != GLFW_TRUE) {
+            continue;
+        }
+        lx = st.axes[GLFW_GAMEPAD_AXIS_LEFT_X];
+        ly = st.axes[GLFW_GAMEPAD_AXIS_LEFT_Y];
+        if (std::fabs(lx) < deadzone) lx = 0.0f;
+        if (std::fabs(ly) < deadzone) ly = 0.0f;
+
+        auto map = [&](int glfw_btn, GamepadButton b) {
+            update_btn(pad[static_cast<usize>(b)], st.buttons[glfw_btn] == GLFW_PRESS);
+        };
+        map(GLFW_GAMEPAD_BUTTON_A, GamepadButton::A);
+        map(GLFW_GAMEPAD_BUTTON_B, GamepadButton::B);
+        map(GLFW_GAMEPAD_BUTTON_X, GamepadButton::X);
+        map(GLFW_GAMEPAD_BUTTON_Y, GamepadButton::Y);
+        map(GLFW_GAMEPAD_BUTTON_LEFT_BUMPER, GamepadButton::LeftBumper);
+        map(GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER, GamepadButton::RightBumper);
+        map(GLFW_GAMEPAD_BUTTON_BACK, GamepadButton::Back);
+        map(GLFW_GAMEPAD_BUTTON_START, GamepadButton::Start);
+        map(GLFW_GAMEPAD_BUTTON_GUIDE, GamepadButton::Guide);
+        map(GLFW_GAMEPAD_BUTTON_LEFT_THUMB, GamepadButton::LeftThumb);
+        map(GLFW_GAMEPAD_BUTTON_RIGHT_THUMB, GamepadButton::RightThumb);
+        map(GLFW_GAMEPAD_BUTTON_DPAD_UP, GamepadButton::DpadUp);
+        map(GLFW_GAMEPAD_BUTTON_DPAD_RIGHT, GamepadButton::DpadRight);
+        map(GLFW_GAMEPAD_BUTTON_DPAD_DOWN, GamepadButton::DpadDown);
+        map(GLFW_GAMEPAD_BUTTON_DPAD_LEFT, GamepadButton::DpadLeft);
+        break; // first pad only
+    }
+#else
+    (void)deadzone;
+    (void)update_btn;
+    lx = 0.0f;
+    ly = 0.0f;
+    (void)pad;
 #endif
 }
 

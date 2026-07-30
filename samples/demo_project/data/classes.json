@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "name": "Adventurer",
+    "base_hp": 100,
+    "base_mp": 50,
+    "base_attack": 10,
+    "base_defense": 10,
+    "base_speed": 10,
+    "skill_ids": [
+      1
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Mage",
+    "base_hp": 70,
+    "base_mp": 90,
+    "base_attack": 6,
+    "base_defense": 5,
+    "base_speed": 12,
+    "skill_ids": [
+      1
+    ]
+  }
+]

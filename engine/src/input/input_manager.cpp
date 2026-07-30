@@ -77,14 +77,52 @@ void InputManager::begin_frame() {
         m.pressed = false;
         m.released = false;
     }
+    for (auto& p : pad_) {
+        p.pressed = false;
+        p.released = false;
+    }
     mouse_dx_ = 0.0;
     mouse_dy_ = 0.0;
     scroll_x_ = 0.0;
     scroll_y_ = 0.0;
+    axis_lx_ = 0.0f;
+    axis_ly_ = 0.0f;
 }
 
 void InputManager::end_frame() {
     // derzeit nichts zusätzliches
+}
+
+void InputManager::poll_gamepads() {
+#if defined(AETHER_WITH_GLFW)
+    extern void input_poll_gamepads(
+        f32 deadzone, f32& lx, f32& ly,
+        std::array<ButtonState, static_cast<usize>(GamepadButton::Count)>& pad,
+        void (*update_btn)(ButtonState&, bool));
+    // Use member update via lambda bridge
+    auto* self = this;
+    auto bridge = [](ButtonState& st, bool down) {
+        // free function can't call member; do inline edge logic
+        if (down && !st.down) st.pressed = true;
+        else if (!down && st.down) st.released = true;
+        st.down = down;
+    };
+    (void)self;
+    input_poll_gamepads(stick_deadzone_, axis_lx_, axis_ly_, pad_, bridge);
+
+    // Stick as digital D-pad (OR with physical dpad already in pad_)
+    const bool su = axis_ly_ < -stick_deadzone_;
+    const bool sd = axis_ly_ > stick_deadzone_;
+    const bool sl = axis_lx_ < -stick_deadzone_;
+    const bool sr = axis_lx_ > stick_deadzone_;
+    if (su) update_button(pad_[static_cast<usize>(GamepadButton::DpadUp)], true);
+    if (sd) update_button(pad_[static_cast<usize>(GamepadButton::DpadDown)], true);
+    if (sl) update_button(pad_[static_cast<usize>(GamepadButton::DpadLeft)], true);
+    if (sr) update_button(pad_[static_cast<usize>(GamepadButton::DpadRight)], true);
+#else
+    axis_lx_ = 0.0f;
+    axis_ly_ = 0.0f;
+#endif
 }
 
 void InputManager::feed_key(Key key, Action action, Modifiers mods) {
@@ -184,6 +222,10 @@ bool InputManager::is_down(std::string_view action) const {
     for (MouseButton b : a.mouse_buttons) {
         if (is_mouse_down(b)) return true;
     }
+    for (GamepadButton b : a.gamepad_buttons) {
+        const auto i = static_cast<usize>(b);
+        if (i < pad_.size() && pad_[i].down) return true;
+    }
     return false;
 }
 
@@ -199,6 +241,10 @@ bool InputManager::was_pressed(std::string_view action) const {
     for (MouseButton b : a.mouse_buttons) {
         if (was_mouse_pressed(b)) return true;
     }
+    for (GamepadButton b : a.gamepad_buttons) {
+        const auto i = static_cast<usize>(b);
+        if (i < pad_.size() && pad_[i].pressed) return true;
+    }
     return false;
 }
 
@@ -213,6 +259,10 @@ bool InputManager::was_released(std::string_view action) const {
     }
     for (MouseButton b : a.mouse_buttons) {
         if (was_mouse_released(b)) return true;
+    }
+    for (GamepadButton b : a.gamepad_buttons) {
+        const auto i = static_cast<usize>(b);
+        if (i < pad_.size() && pad_[i].released) return true;
     }
     return false;
 }

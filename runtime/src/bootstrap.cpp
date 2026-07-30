@@ -7,6 +7,7 @@
 #include <aether/aether.hpp>
 #include <aether/anim/animation.hpp>
 #include <aether/game/battle.hpp>
+#include <aether/game/event_runner.hpp>
 #include <aether/game/inventory.hpp>
 #include <aether/game/map_loader.hpp>
 #include <aether/game/player.hpp>
@@ -72,6 +73,11 @@ struct RuntimeState {
     game::Battle battle;
     bool in_battle = false;
     game::HudBuilder hud;
+    game::MapEventRunner event_runner;
+    game::ScreenFade fade;
+    u32 pending_transfer_map = 0;
+    render::Vec3 pending_transfer_pos{0.0f};
+    bool has_pending_transfer = false;
     game::GameSceneStack scenes;
     game::GameContext gctx;
     render::Camera camera;
@@ -210,6 +216,8 @@ bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
     }
     rs.follow_cam.snap(rs.player.position());
     rs.map_active = true;
+    rs.event_runner.reset_map();
+    rs.fade.fade_in(0.35f);
     return true;
 }
 
@@ -534,8 +542,10 @@ void update_map_gameplay(RuntimeState& rs, input::InputManager& input, f64 fixed
                 });
                 rs.interpreter.set_transfer_handler(
                     [&](u32 map_id, f32 x, f32 y, f32 z, i32) {
-                        const render::Vec3 pos{x, y, z};
-                        load_map_into(rs, rs.gctx.renderer, map_id, &pos);
+                        rs.pending_transfer_map = map_id;
+                        rs.pending_transfer_pos = {x, y, z};
+                        rs.has_pending_transfer = true;
+                        rs.fade.fade_out(0.25f);
                     });
                 rs.interpreter.start(obj->map_event->pages[0].commands);
                 pump_interpreter(rs);
@@ -543,7 +553,28 @@ void update_map_gameplay(RuntimeState& rs, input::InputManager& input, f64 fixed
         }
     }
 
-    // Debug/demo: F-key via page_down starts hunt battle if enemy nearby flag
+    // Autorun / touch events
+    if (!rs.interpreter.is_running()) {
+        const bool started = rs.event_runner.update(
+            *rs.scene, rs.player.position(), 0.9f, rs.interpreter, rs.game_state);
+        if (started) {
+            rs.interpreter.set_script_handler([&](const std::string& code) {
+                if (rs.vm) {
+                    auto r = rs.vm->eval(code);
+                    if (!r.ok) core::log_warn("Event", r.error);
+                }
+            });
+            rs.interpreter.set_transfer_handler([&](u32 map_id, f32 x, f32 y, f32 z, i32) {
+                rs.pending_transfer_map = map_id;
+                rs.pending_transfer_pos = {x, y, z};
+                rs.has_pending_transfer = true;
+                rs.fade.fade_out(0.25f);
+            });
+            pump_interpreter(rs);
+        }
+    }
+
+    // Debug/demo: page_down starts hunt battle
     if (input.was_pressed("page_down") && !rs.database.enemies.empty()) {
         rs.quests.start("hunt_001");
         start_battle(rs, rs.database.enemies.front().id);
@@ -721,11 +752,21 @@ int run_game(const RuntimeOptions& options) {
         if (!ctx->pump_frame()) {
             break;
         }
+        input.poll_gamepads();
 
         const f64 dt = ctx->time().delta_seconds();
         rs.gctx.delta = dt;
         audio->update(dt);
         rs.weather.update(dt);
+        rs.fade.update(dt);
+
+        // Finish map transfer at black
+        if (rs.has_pending_transfer && rs.fade.just_black()) {
+            load_map_into(rs, renderer.get(), rs.pending_transfer_map,
+                          &rs.pending_transfer_pos);
+            rs.has_pending_transfer = false;
+            rs.fade.fade_in(0.35f);
+        }
         rs.playtime_accum += dt;
         while (rs.playtime_accum >= 1.0) {
             rs.playtime_accum -= 1.0;
@@ -807,7 +848,13 @@ int run_game(const RuntimeOptions& options) {
         }
 
         if (renderer) {
-            renderer->set_clear_color(rs.weather.clear_color_mod(base_clear));
+            auto clear = rs.weather.clear_color_mod(base_clear);
+            // bake fade toward black
+            const f32 a = rs.fade.alpha();
+            clear.r *= (1.0f - a);
+            clear.g *= (1.0f - a);
+            clear.b *= (1.0f - a);
+            renderer->set_clear_color(clear);
             std::vector<render::Renderable> items;
             if (rs.map_active && rs.scene && !rs.in_battle) {
                 rs.scene->collect_renderables(items);
@@ -816,7 +863,6 @@ int run_game(const RuntimeOptions& options) {
             if (rs.map_active && !rs.in_battle) {
                 renderer->draw(rs.camera, items);
             }
-            // ImGui HUD if available (editor links imgui; runtime may not)
             (void)game::HudBuilder::draw_imgui(hud_state);
             renderer->end_frame();
         }

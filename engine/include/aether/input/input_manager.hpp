@@ -115,9 +115,19 @@ public:
     /**
      * @brief Standard-Mapping im Stil klassischer RPG Maker:
      *  confirm/Z/Space/Enter, cancel/X/Escape, menu/Shift,
-     *  up/down/left/right + WASD
+     *  up/down/left/right + WASD + Gamepad
      */
     void register_default_rpg_actions();
+
+    /**
+     * @brief Pollt angeschlossene Gamepads (GLFW) und speist Actions.
+     * Pro Frame nach begin_frame() und poll_events aufrufen.
+     */
+    void poll_gamepads();
+
+    /** @brief Linker Stick als Achsen [-1,1], totzone angewendet. */
+    [[nodiscard]] f32 axis_left_x() const noexcept { return axis_lx_; }
+    [[nodiscard]] f32 axis_left_y() const noexcept { return axis_ly_; }
 
 private:
     void update_button(ButtonState& state, bool down);
@@ -135,6 +145,11 @@ private:
     f64 scroll_x_ = 0.0;
     f64 scroll_y_ = 0.0;
     bool mouse_initialized_ = false;
+
+    f32 axis_lx_ = 0.0f;
+    f32 axis_ly_ = 0.0f;
+    f32 stick_deadzone_ = 0.25f;
+    std::array<ButtonState, static_cast<usize>(GamepadButton::Count)> pad_{};
 
     std::unordered_map<std::string, InputAction> actions_;
 };
