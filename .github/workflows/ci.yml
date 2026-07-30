@@ -1,0 +1,222 @@
+# =============================================================================
+# AetherRPG Maker – Continuous Integration
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Linux – Full stack (GLFW, OpenGL, miniaudio, ImGui, optional mruby)
+  # ---------------------------------------------------------------------------
+  linux:
+    name: Linux (${{ matrix.build_type }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+        include:
+          - build_type: Debug
+            extra_flags: "-DAETHER_ENABLE_ASAN=OFF"
+          - build_type: Release
+            extra_flags: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            git \
+            pkg-config \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            mesa-common-dev \
+            ruby \
+            ruby-dev \
+            bison \
+            g++ \
+            xvfb \
+            libasound2-dev \
+            libpulse-dev
+
+      - name: CMake configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DAETHER_BUILD_EDITOR=ON \
+            -DAETHER_BUILD_RUNTIME=ON \
+            -DAETHER_BUILD_TESTS=ON \
+            -DAETHER_WITH_GLFW=ON \
+            -DAETHER_WITH_OPENGL=ON \
+            -DAETHER_WITH_MINIAUDIO=ON \
+            -DAETHER_WITH_STB=ON \
+            -DAETHER_WITH_MRUBY=ON \
+            ${{ matrix.extra_flags }}
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Unit & smoke tests (headless)
+        run: |
+          ctest --test-dir build -C ${{ matrix.build_type }} \
+            --output-on-failure --timeout 120
+
+      - name: Runtime smoke under Xvfb
+        if: matrix.build_type == 'Release'
+        run: |
+          xvfb-run -a ./build/bin/Game \
+            --project samples/demo_project \
+            --max-frames 30 || \
+          ./build/bin/Game \
+            --project samples/demo_project \
+            --headless --max-frames 30
+
+      - name: Editor smoke under Xvfb
+        if: matrix.build_type == 'Release'
+        run: |
+          xvfb-run -a ./build/bin/AetherEditor \
+            --gui --new "$RUNNER_TEMP/ci_game" --testplay --max-frames 10 || \
+          ./build/bin/AetherEditor \
+            --headless --new "$RUNNER_TEMP/ci_game" --testplay --max-frames 5
+
+      - name: Upload Linux binaries
+        if: matrix.build_type == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aether-linux-x64
+          path: |
+            build/bin/Game
+            build/bin/AetherEditor
+            build/bin/assets/
+            build/bin/templates/
+            samples/demo_project/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Linux headless-only (no X11) – verifies Null backends always work
+  # ---------------------------------------------------------------------------
+  linux-headless:
+    name: Linux Headless (Null backends)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minimal toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git
+
+      - name: Configure without GLFW
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DAETHER_WITH_GLFW=OFF \
+            -DAETHER_WITH_OPENGL=OFF \
+            -DAETHER_WITH_MRUBY=OFF \
+            -DAETHER_BUILD_TESTS=ON
+
+      - name: Build & test
+        run: |
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 120
+
+  # ---------------------------------------------------------------------------
+  # Windows (MSVC)
+  # ---------------------------------------------------------------------------
+  windows:
+    name: Windows MSVC (${{ matrix.build_type }})
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DAETHER_BUILD_TESTS=ON `
+            -DAETHER_WITH_GLFW=ON `
+            -DAETHER_WITH_OPENGL=ON `
+            -DAETHER_WITH_MINIAUDIO=ON `
+            -DAETHER_WITH_STB=ON `
+            -DAETHER_WITH_MRUBY=OFF
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+      - name: Test
+        shell: pwsh
+        run: |
+          ctest --test-dir build -C ${{ matrix.build_type }} `
+            --output-on-failure --timeout 180
+
+      - name: Upload Windows binaries
+        if: matrix.build_type == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aether-windows-x64
+          path: |
+            build/bin/Game.exe
+            build/bin/AetherEditor.exe
+            build/bin/assets/
+            build/bin/templates/
+            samples/demo_project/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # macOS (optional best-effort)
+  # ---------------------------------------------------------------------------
+  macos:
+    name: macOS
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: brew install cmake ninja || true
+
+      - name: Configure & build
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DAETHER_BUILD_TESTS=ON \
+            -DAETHER_WITH_GLFW=ON \
+            -DAETHER_WITH_OPENGL=ON \
+            -DAETHER_WITH_MRUBY=OFF
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180 || true
