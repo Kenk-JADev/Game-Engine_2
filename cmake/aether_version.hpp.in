@@ -1,0 +1,13 @@
+/**
+ * @file version.hpp
+ * @brief Generierte Versionsinformationen (CMake configure_file).
+ */
+#pragma once
+
+#define AETHER_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define AETHER_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define AETHER_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define AETHER_VERSION_STRING "@PROJECT_VERSION@"
+
+#define AETHER_VERSION_NUMBER \
+    (AETHER_VERSION_MAJOR * 10000 + AETHER_VERSION_MINOR * 100 + AETHER_VERSION_PATCH)

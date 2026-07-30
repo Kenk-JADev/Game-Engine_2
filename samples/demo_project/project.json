@@ -1,0 +1,37 @@
+{
+  "format_version": 1,
+  "name": "Aether Demo",
+  "version": "0.1.0",
+  "author": "Aether Team",
+  "description": "Demo project showcasing AetherRPG Maker features.",
+  "engine_api_version": 1,
+  "start": {
+    "map_id": 1,
+    "x": 5.0,
+    "y": 0.0,
+    "z": 5.0,
+    "direction": 2
+  },
+  "graphics": {
+    "title": "Aether Demo",
+    "width": 1280,
+    "height": 720,
+    "fullscreen": false,
+    "vsync": true,
+    "frame_rate": 60
+  },
+  "audio": {
+    "bgm_volume": 80,
+    "bgs_volume": 64,
+    "me_volume": 80,
+    "se_volume": 80
+  },
+  "scripts": {
+    "entry": "scripts/main.rb"
+  },
+  "plugins": [],
+  "data_path": "data",
+  "maps_path": "maps",
+  "graphics_path": "graphics",
+  "audio_path": "audio"
+}

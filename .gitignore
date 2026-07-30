@@ -1,0 +1,57 @@
+# Build
+/build/
+/out/
+/cmake-build-*/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.pdb
+*.idb
+*.ilk
+*.exp
+
+# IDE / Editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+*~
+.DS_Store
+CMakeLists.txt.user
+
+# Logs & caches
+/logs/*
+!/logs/.gitkeep
+*.log
+.aether_cache/
+__pycache__/
+*.pyc
+
+# Dependencies (wenn per FetchContent lokal)
+# third_party/*  – bewusst nicht alles ignorieren; nur Build-Artefakte
+third_party/**/build/
+
+# Packages / Export
+/dist/
+/export/
+*.zip
+*.7z
+
+# Test output
+/Testing/
+/coverage/
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+
+# OS
+Thumbs.db
+desktop.ini

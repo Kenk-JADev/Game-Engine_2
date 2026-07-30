@@ -1,0 +1,9 @@
+{
+  "name": "ExamplePlugin",
+  "version": "1.0.0",
+  "author": "Aether Team",
+  "description": "Minimal example plugin for AetherRPG Maker.",
+  "entry": "main.rb",
+  "dependencies": [],
+  "api_version": 1
+}

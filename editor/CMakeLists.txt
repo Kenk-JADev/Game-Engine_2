@@ -1,0 +1,48 @@
+# =============================================================================
+# AetherEditor – Visueller RPG-Maker-Editor
+# =============================================================================
+
+set(AETHER_EDITOR_SOURCES
+    src/app/main.cpp
+    src/export/exporter.cpp
+)
+
+add_executable(AetherEditor ${AETHER_EDITOR_SOURCES})
+
+target_include_directories(AetherEditor
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(AetherEditor
+    PRIVATE
+        aether::engine
+        aether::shared
+)
+
+aether_apply_common_options(AetherEditor)
+
+set_target_properties(AetherEditor PROPERTIES
+    OUTPUT_NAME "AetherEditor"
+    FOLDER "aether"
+    WIN32_EXECUTABLE FALSE
+)
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/assets/engine")
+    aether_copy_dir_postbuild(AetherEditor
+        "${CMAKE_SOURCE_DIR}/assets/engine"
+        "assets/engine")
+endif()
+if(EXISTS "${CMAKE_SOURCE_DIR}/assets/editor")
+    aether_copy_dir_postbuild(AetherEditor
+        "${CMAKE_SOURCE_DIR}/assets/editor"
+        "assets/editor")
+endif()
+if(EXISTS "${CMAKE_SOURCE_DIR}/templates")
+    aether_copy_dir_postbuild(AetherEditor
+        "${CMAKE_SOURCE_DIR}/templates"
+        "templates")
+endif()
+
+install(TARGETS AetherEditor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
