@@ -20,14 +20,16 @@ jobs:
 
       - name: Install deps
         run: |
+          set -euxo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake ninja-build git pkg-config \
             libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
-            libgl1-mesa-dev ruby ruby-dev bison libasound2-dev
+            libgl1-mesa-dev ruby ruby-dev rake bison libasound2-dev
 
       - name: Build Release
         run: |
+          set -euxo pipefail
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DAETHER_WITH_GLFW=ON \
@@ -36,11 +38,18 @@ jobs:
             -DAETHER_WITH_STB=ON \
             -DAETHER_WITH_MRUBY=ON \
             -DAETHER_BUILD_TESTS=ON
-          cmake --build build
-          ctest --test-dir build --output-on-failure
+          cmake --build build 2>&1 | tee build.log
+          ctest --test-dir build --output-on-failure 2>&1 | tee ctest.log
+
+      - name: Show errors on failure
+        if: failure()
+        run: |
+          tail -n 200 build.log || true
+          grep -nE 'error:|fatal error:|undefined reference|FAILED:|CHECK failed' build.log ctest.log || true
 
       - name: Package
         run: |
+          set -euxo pipefail
           STAGE=dist/AetherRPG-linux-x64
           mkdir -p "$STAGE"
           cp -a build/bin/Game build/bin/AetherEditor "$STAGE/"
@@ -70,8 +79,11 @@ jobs:
             -DAETHER_WITH_STB=ON `
             -DAETHER_WITH_MRUBY=OFF `
             -DAETHER_BUILD_TESTS=ON
+          if ($LASTEXITCODE -ne 0) { throw "configure failed" }
           cmake --build build --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw "build failed" }
           ctest --test-dir build -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw "ctest failed" }
 
       - name: Package
         shell: pwsh

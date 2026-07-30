@@ -32,3 +32,21 @@ gh api --method PUT \
 ```
 
 Nach dem Anlegen startet der Workflow bei Push/PR automatisch.
+
+## Achtung beim Einfügen
+
+Manche Editoren wandeln ``${{ matrix.build_type }}`` fälschlich in einen Markdown-Link um
+(``[matrix.build](http://matrix.build)_type``). Das **bricht die CI**.
+
+Immer **Raw-Datei** aus diesem Ordner kopieren oder per:
+
+```bash
+mkdir -p .github/workflows
+cp docs/dev/github-workflows/ci.yml .github/workflows/
+cp docs/dev/github-workflows/release.yml .github/workflows/
+```
+
+Bei Build-Fehlern:
+- Job ist rot (exit code ≠ 0)
+- Step **Show build errors on failure** zeigt `error:` / Linker-Fehler
+- Artifact `*-failure-logs` enthält `build.log` und `ctest.log`
