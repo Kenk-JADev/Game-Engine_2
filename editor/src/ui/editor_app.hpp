@@ -70,6 +70,9 @@ private:
     void save_project();
     void ensure_map_scene();
     void place_palette_object(const char* kind);
+    void place_at_world(const render::Vec3& world, const char* kind);
+    bool viewport_pick(float local_x, float local_y, float vp_w, float vp_h);
+    [[nodiscard]] static float snap_value(float v, float grid) noexcept;
     void run_testplay_smoke();
     void do_export();
     void load_script_buffer();
@@ -111,6 +114,13 @@ private:
     EntityId selected_id_ = kInvalidEntity;
     int palette_index_ = 0;
     UndoStack undo_;
+    bool grid_snap_ = true;
+    float grid_size_ = 1.0f;
+    bool place_mode_ = false; ///< next viewport click places palette object
+    float cam_dist_ = 18.0f;
+    float cam_height_ = 12.0f;
+    float cam_yaw_ = 0.4f;
+    char mesh_path_buf_[256]{};
 
     // Database editor
     int db_subtab_ = 0; // 0 actors 1 enemies 2 items 3 skills 4 system

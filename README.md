@@ -112,7 +112,8 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Undo | Karteneditor Snapshot-Undo/Redo |
 | Handbuch | docs/user/HANDBUCH.md |
 | Demo | 2 Karten, WAV-Audio, Portale, NPCs |
-| Tests | 18 automatisierte Tests |
+| Editor-Viewport | Ray-Picking, Orbit/Zoom, Grid-Snap, Platzier-Modus |
+| Tests | 19 automatisierte Tests |
 
 ## Vendored Third-Party
 

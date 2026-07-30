@@ -86,6 +86,26 @@ public:
         return glm::length(point - position_);
     }
 
+    /**
+     * @brief Screen-Pixel (origin top-left) → Weltstrahl.
+     */
+    void screen_to_ray(f32 screen_x, f32 screen_y, f32 viewport_w, f32 viewport_h,
+                       Vec3& out_origin, Vec3& out_dir) const;
+
+    /**
+     * @brief Schnittpunkt Strahl ↔ Ebene y = plane_y.
+     * @return false wenn parallel / hinter Kamera
+     */
+    [[nodiscard]] static bool ray_plane_y(const Vec3& origin, const Vec3& dir, f32 plane_y,
+                                          Vec3& out_hit) noexcept;
+
+    /**
+     * @brief Strahl ↔ AABB (slab method).
+     * @return true bei Treffer; tmin Distanz
+     */
+    [[nodiscard]] static bool ray_aabb(const Vec3& origin, const Vec3& dir, const AABB& box,
+                                       f32& tmin) noexcept;
+
 private:
     void recompute() const;
 

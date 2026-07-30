@@ -84,6 +84,13 @@ public:
      */
     void collect_renderables(std::vector<render::Renderable>& out) const;
 
+    /**
+     * @brief Picking: nächstes Objekt entlang Strahl (nach t).
+     * @return kInvalidEntity wenn nichts
+     */
+    [[nodiscard]] EntityId pick_ray(const render::Vec3& origin,
+                                    const render::Vec3& dir) const;
+
     // JSON
     [[nodiscard]] nlohmann::json to_json() const;
     static void load_from_json(Scene& out, const nlohmann::json& j);

@@ -35,10 +35,13 @@ Binaries: `build/bin/AetherEditor`, `build/bin/Game`
 
 ### Karte bedienen
 
-1. Objekt in der **Palette** wählen → **Platzieren**
-2. In der Liste auswählen → Position/Größe im Inspector
-3. **Navigation backen** für NPC-Pfade
-4. **Rückgängig / Wiederholen** über Menü oder Buttons
+1. Objekt in der **Palette** wählen  
+2. **Platzier-Modus** aktivieren → **LMB im Viewport** setzt mit Grid-Snap  
+   oder „Hier platzieren“ für automatische Position  
+3. **LMB ohne Platzier-Modus** = 3D-Auswahl (Ray-Picking)  
+4. **RMB-Ziehen** = Orbit, **Mausrad** = Zoom  
+5. Optional: glTF/OBJ-Pfad auf Auswahl laden  
+6. **Navigation backen**, **Rückgängig/Wiederholen**
 
 ### Events (ohne Code)
 

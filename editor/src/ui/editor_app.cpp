@@ -403,53 +403,131 @@ void EditorApp::draw_map_tab() {
         return;
     }
     ensure_map_scene();
-
-    ImGui::BeginChild("palette", ImVec2(220, 0), true);
-    ImGui::TextUnformatted("Objekt-Palette");
-    ImGui::TextWrapped("Drag&Drop-Ersatz: Klick platziert mit Auto-Kollision.");
     const char* items[] = {"Prop (Würfel)", "NPC", "Gegner", "Event", "Boden"};
+
+    // Camera update (shared for 3D view + picking)
+    {
+        const float cx = std::cos(cam_yaw_) * cam_dist_;
+        const float cz = std::sin(cam_yaw_) * cam_dist_;
+        map_camera_.look_at({cx, cam_height_, cz}, {0, 0, 0}, {0, 1, 0});
+        const ImVec2 ds = ImGui::GetIO().DisplaySize;
+        if (ds.y > 1.0f) {
+            map_camera_.set_perspective(45.0f, ds.x / ds.y, 0.1f, 500.0f);
+        }
+    }
+
+    ImGui::BeginChild("palette", ImVec2(200, 0), true);
+    ImGui::TextUnformatted("Objekt-Palette");
+    ImGui::TextWrapped("Klick im Viewport platziert (Platzier-Modus) oder wählt aus.");
     ImGui::ListBox("##pal", &palette_index_, items, IM_ARRAYSIZE(items));
-    if (ImGui::Button("Platzieren", ImVec2(-1, 0))) {
+    ImGui::Checkbox("Platzier-Modus", &place_mode_);
+    if (ImGui::Button("Hier platzieren", ImVec2(-1, 0))) {
         push_undo("Platzieren");
         place_palette_object(items[palette_index_]);
     }
-    if (ImGui::Button("Rückgängig", ImVec2(-1, 0))) {
-        do_undo();
-    }
-    if (ImGui::Button("Wiederholen", ImVec2(-1, 0))) {
-        do_redo();
-    }
+    ImGui::Checkbox("Grid-Snap", &grid_snap_);
+    ImGui::SliderFloat("Grid", &grid_size_, 0.25f, 4.0f, "%.2f");
+    if (ImGui::Button("Rückgängig", ImVec2(-1, 0))) do_undo();
+    if (ImGui::Button("Wiederholen", ImVec2(-1, 0))) do_redo();
     if (ImGui::Button("Navigation backen", ImVec2(-1, 0))) {
         map_scene_->bake_navigation();
         status_message_ = "Navigation gebacken";
     }
     if (ImGui::Button("Kollision neu", ImVec2(-1, 0))) {
         map_scene_->rebuild_collision();
-        status_message_ = "Kollision neu aufgebaut";
+        status_message_ = "Kollision neu";
+    }
+    ImGui::Separator();
+    ImGui::TextUnformatted("Mesh laden");
+    ImGui::InputText("##mesh", mesh_path_buf_, sizeof(mesh_path_buf_));
+    if (ImGui::Button("glTF/OBJ auf Auswahl", ImVec2(-1, 0)) && selected_id_ != kInvalidEntity &&
+        mesh_path_buf_[0] && resources_) {
+        auto m = resources_->load_mesh(mesh_path_buf_);
+        if (m) {
+            push_undo("Mesh");
+            if (auto* o = map_scene_->find(selected_id_)) {
+                o->mesh = m.value();
+                if (renderer_) renderer_->upload_mesh(*o->mesh);
+                map_scene_->rebuild_collision();
+                status_message_ = std::string("Mesh: ") + mesh_path_buf_;
+            }
+        } else {
+            status_message_ = "Mesh fehlgeschlagen";
+        }
     }
     ImGui::EndChild();
 
     ImGui::SameLine();
-    ImGui::BeginChild("hierarchy", ImVec2(260, 0), true);
-    ImGui::TextUnformatted("Kartenobjekte");
+    ImGui::BeginChild("hierarchy", ImVec2(200, 0), true);
+    ImGui::TextUnformatted("Objekte");
     for (const auto& o : map_scene_->objects()) {
-        const bool sel = (selected_id_ == o.id);
-        if (ImGui::Selectable(o.name.c_str(), sel)) {
+        if (ImGui::Selectable(o.name.c_str(), selected_id_ == o.id)) {
             selected_id_ = o.id;
         }
     }
     ImGui::EndChild();
 
     ImGui::SameLine();
+    ImGui::BeginChild("viewport_col", ImVec2(0, 0), false);
+
+    // Interactive viewport region (picks against the full-window 3D render)
+    ImGui::BeginChild("viewport", ImVec2(0, -220), true, ImGuiWindowFlags_NoScrollbar);
+    {
+        const ImVec2 vsize = ImGui::GetContentRegionAvail();
+        ImGui::InvisibleButton("##vp_btn", vsize);
+        const bool hovered = ImGui::IsItemHovered();
+        const ImVec2 rmin = ImGui::GetItemRectMin();
+        const ImGuiIO& io = ImGui::GetIO();
+
+        if (hovered) {
+            if (io.MouseWheel != 0.0f) {
+                cam_dist_ = std::clamp(cam_dist_ - io.MouseWheel * 1.5f, 4.0f, 80.0f);
+            }
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Right)) {
+                cam_yaw_ += io.MouseDelta.x * 0.01f;
+                cam_height_ = std::clamp(cam_height_ - io.MouseDelta.y * 0.05f, 1.0f, 50.0f);
+            }
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                const float lx = io.MousePos.x - rmin.x;
+                const float ly = io.MousePos.y - rmin.y;
+                // Map local viewport click → full display coords used by 3D camera
+                const float sx = io.MousePos.x;
+                const float sy = io.MousePos.y;
+                (void)lx;
+                (void)ly;
+                viewport_pick(sx, sy, io.DisplaySize.x, io.DisplaySize.y);
+            }
+        }
+
+        // Overlay help
+        ImGui::SetCursorPos(ImVec2(8, 8));
+        ImGui::TextColored(ImVec4(1, 1, 1, 0.85f),
+                           "LMB: %s | RMB-Drag: Orbit | Wheel: Zoom",
+                           place_mode_ ? "Platzieren" : "Auswählen");
+        if (selected_id_ != kInvalidEntity) {
+            if (auto* o = map_scene_->find(selected_id_)) {
+                ImGui::Text("Auswahl: %s", o->name.c_str());
+            }
+        }
+    }
+    ImGui::EndChild();
+
     ImGui::BeginChild("inspector", ImVec2(0, 0), true);
-    ImGui::TextUnformatted("Eigenschaften (nicht-technisch)");
+    ImGui::TextUnformatted("Eigenschaften");
+    ImGui::SliderFloat("Abstand", &cam_dist_, 5.0f, 60.0f);
+    ImGui::SliderFloat("Höhe", &cam_height_, 2.0f, 40.0f);
+    ImGui::SliderFloat("Drehung", &cam_yaw_, -3.14f, 3.14f);
     if (auto* obj = map_scene_->find(selected_id_)) {
         char name[128];
         std::snprintf(name, sizeof(name), "%s", obj->name.c_str());
         if (ImGui::InputText("Name", name, sizeof(name))) obj->name = name;
         float pos[3] = {obj->transform.position.x, obj->transform.position.y,
                         obj->transform.position.z};
-        if (ImGui::DragFloat3("Position", pos, 0.1f)) {
+        if (ImGui::DragFloat3("Position", pos, grid_snap_ ? grid_size_ : 0.1f)) {
+            if (grid_snap_) {
+                pos[0] = snap_value(pos[0], grid_size_);
+                pos[2] = snap_value(pos[2], grid_size_);
+            }
             obj->transform.position = {pos[0], pos[1], pos[2]};
             if (obj->collision_id) {
                 map_scene_->collision().set_transform(obj->collision_id, obj->transform);
@@ -463,52 +541,28 @@ void EditorApp::draw_map_tab() {
             }
         }
         ImGui::Checkbox("Sichtbar", &obj->visible);
-        ImGui::Text("Kollision: automatisch (#%u)", obj->collision_id);
-        ImGui::Text("Navigation: %s", map_scene_->has_nav() ? "bereit" : "noch nicht gebacken");
-        if (obj->map_event) {
-            ImGui::Separator();
-            ImGui::TextUnformatted("Event vorhanden – siehe Tab Events");
-            if (ImGui::Button("Events öffnen")) tab_ = EditorTab::Events;
-        }
+        ImGui::Text("Kollision auto (#%u)", obj->collision_id);
+        if (obj->map_event && ImGui::Button("Events")) tab_ = EditorTab::Events;
         if (ImGui::Button("Löschen")) {
             push_undo("Löschen");
             map_scene_->remove_object(selected_id_);
             selected_id_ = kInvalidEntity;
         }
-    } else {
-        ImGui::TextUnformatted("Kein Objekt gewählt.");
-    }
-    ImGui::Separator();
-    ImGui::Text("Kamera");
-    // simple orbit height
-    static float cam_dist = 18.0f;
-    static float cam_height = 12.0f;
-    ImGui::SliderFloat("Abstand", &cam_dist, 5.0f, 60.0f);
-    ImGui::SliderFloat("Höhe", &cam_height, 2.0f, 40.0f);
-    static float cam_yaw = 0.4f;
-    ImGui::SliderFloat("Drehung", &cam_yaw, -3.14f, 3.14f);
-    {
-        const float cx = std::cos(cam_yaw) * cam_dist;
-        const float cz = std::sin(cam_yaw) * cam_dist;
-        map_camera_.look_at({cx, cam_height, cz}, {0, 0, 0}, {0, 1, 0});
-    }
-    ImGui::TextWrapped(
-        "Viewport: Mausrad/Slider drehen. Objekt in Liste wählen = Inspector. "
-        "Palette platziert mit Auto-Kollision (kein Collider-Setup).");
-    if (renderer_) {
-        ImGui::Text("Renderer: %s | drawn %u / culled %u",
-                    renderer_->backend() == render::RendererBackend::OpenGL ? "OpenGL" : "Null",
-                    renderer_->stats().drawn, renderer_->stats().culled);
-    }
-    // Click-select approximation: buttons for each object near origin
-    if (ImGui::Button("Fokus Auswahl") && selected_id_ != kInvalidEntity) {
-        if (auto* o = map_scene_->find(selected_id_)) {
+        if (ImGui::Button("Fokus")) {
             map_camera_.look_at(
-                {o->transform.position.x + cam_dist * 0.5f, cam_height,
-                 o->transform.position.z + cam_dist * 0.5f},
-                o->transform.position, {0, 1, 0});
+                {obj->transform.position.x + cam_dist_ * 0.5f, cam_height_,
+                 obj->transform.position.z + cam_dist_ * 0.5f},
+                obj->transform.position, {0, 1, 0});
         }
+    } else {
+        ImGui::TextUnformatted("Kein Objekt – klicken oder Liste.");
     }
+    if (renderer_) {
+        ImGui::Text("Renderer: %s | %u drawn",
+                    renderer_->backend() == render::RendererBackend::OpenGL ? "OpenGL" : "Null",
+                    renderer_->stats().drawn);
+    }
+    ImGui::EndChild();
     ImGui::EndChild();
 #endif
 }
@@ -1088,47 +1142,108 @@ void EditorApp::ensure_map_scene() {
     undo_.push(*map_scene_, "Basis");
 }
 
-void EditorApp::place_palette_object(const char* kind) {
+float EditorApp::snap_value(float v, float grid) noexcept {
+    if (grid <= 1.0e-4f) {
+        return v;
+    }
+    return std::round(v / grid) * grid;
+}
+
+bool EditorApp::viewport_pick(float screen_x, float screen_y, float vp_w, float vp_h) {
+    ensure_map_scene();
+    if (!map_scene_) {
+        return false;
+    }
+    render::Vec3 origin, dir;
+    map_camera_.screen_to_ray(screen_x, screen_y, vp_w, vp_h, origin, dir);
+
+    if (place_mode_) {
+        render::Vec3 hit;
+        if (!render::Camera::ray_plane_y(origin, dir, 0.0f, hit)) {
+            return false;
+        }
+        if (grid_snap_) {
+            hit.x = snap_value(hit.x, grid_size_);
+            hit.z = snap_value(hit.z, grid_size_);
+        }
+        hit.y = 0.0f;
+        const char* items[] = {"Prop (Würfel)", "NPC", "Gegner", "Event", "Boden"};
+        const char* kind = items[std::clamp(palette_index_, 0, 4)];
+        push_undo("Viewport-Platzieren");
+        place_at_world(hit, kind);
+        return true;
+    }
+
+    const EntityId id = map_scene_->pick_ray(origin, dir);
+    if (id != kInvalidEntity) {
+        selected_id_ = id;
+        if (auto* o = map_scene_->find(id)) {
+            status_message_ = std::string("Gewählt: ") + o->name;
+        }
+        return true;
+    }
+    selected_id_ = kInvalidEntity;
+    status_message_ = "Nichts getroffen";
+    return false;
+}
+
+void EditorApp::place_at_world(const render::Vec3& world, const char* kind) {
     ensure_map_scene();
     render::Transform t;
-    t.position = {static_cast<float>((map_scene_->objects().size() % 5) * 2), 0.5f,
-                  static_cast<float>((map_scene_->objects().size() / 5) * 2)};
+    t.position = world;
 
     scene::ObjectType type = scene::ObjectType::Prop;
-    std::string name = kind;
+    std::string name = kind ? kind : "Prop";
     std::shared_ptr<render::Mesh> mesh = render::Mesh::create_cube(1.0f);
 
-    if (std::strstr(kind, "NPC")) {
+    if (kind && std::strstr(kind, "NPC")) {
         type = scene::ObjectType::Npc;
         name = "NPC_" + std::to_string(map_scene_->objects().size());
         t.scale = {0.6f, 1.2f, 0.6f};
-    } else if (std::strstr(kind, "Gegner") || std::strstr(kind, "Enemy")) {
+        t.position.y = 0.0f;
+    } else if (kind && (std::strstr(kind, "Gegner") || std::strstr(kind, "Enemy"))) {
         type = scene::ObjectType::Enemy;
         name = "Enemy_" + std::to_string(map_scene_->objects().size());
         t.scale = {0.8f, 0.8f, 0.8f};
-    } else if (std::strstr(kind, "Event")) {
+    } else if (kind && std::strstr(kind, "Event")) {
         type = scene::ObjectType::Event;
         name = "EV" + std::to_string(map_scene_->objects().size());
         t.scale = {0.5f, 0.5f, 0.5f};
-    } else if (std::strstr(kind, "Boden")) {
+    } else if (kind && std::strstr(kind, "Boden")) {
         type = scene::ObjectType::Prop;
         name = "Boden";
         mesh = render::Mesh::create_plane(40.0f);
         t.position = {0, 0, 0};
         t.scale = {1, 1, 1};
+    } else {
+        t.position.y = 0.5f;
     }
 
-    if (renderer_) renderer_->upload_mesh(*mesh);
+    if (renderer_) {
+        renderer_->upload_mesh(*mesh);
+    }
     selected_id_ = map_scene_->place(type, name, mesh, t);
     if (auto* o = map_scene_->find(selected_id_)) {
         if (type == scene::ObjectType::Npc)
-            o->material.albedo = render::Color{0.3f, 0.6f, 1.0f, 1};
+            o->material.albedo = render::Color{0.3f, 0.85f, 0.45f, 1};
         if (type == scene::ObjectType::Enemy)
             o->material.albedo = render::Color{1.0f, 0.35f, 0.3f, 1};
         if (type == scene::ObjectType::Event)
             o->material.albedo = render::Color{1.0f, 0.9f, 0.2f, 1};
     }
-    status_message_ = "Platziert: " + name + " (Kollision auto)";
+    status_message_ = "Platziert: " + name + " @ (" + std::to_string(t.position.x) + ", " +
+                      std::to_string(t.position.z) + ")";
+}
+
+void EditorApp::place_palette_object(const char* kind) {
+    ensure_map_scene();
+    render::Vec3 p{static_cast<float>((map_scene_->objects().size() % 5) * 2), 0.0f,
+                   static_cast<float>((map_scene_->objects().size() / 5) * 2)};
+    if (grid_snap_) {
+        p.x = snap_value(p.x, grid_size_);
+        p.z = snap_value(p.z, grid_size_);
+    }
+    place_at_world(p, kind);
 }
 
 void EditorApp::run_testplay_smoke() {

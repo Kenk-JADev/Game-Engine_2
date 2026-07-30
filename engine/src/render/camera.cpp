@@ -3,6 +3,9 @@
  */
 #include <aether/render/camera.hpp>
 
+#include <algorithm>
+#include <cmath>
+
 namespace aether::render {
 namespace {
 
@@ -90,6 +93,61 @@ Mat4 Camera::view_projection_matrix() const {
 
 Frustum Camera::frustum() const {
     return extract_frustum(view_projection_matrix());
+}
+
+void Camera::screen_to_ray(f32 screen_x, f32 screen_y, f32 viewport_w, f32 viewport_h,
+                           Vec3& out_origin, Vec3& out_dir) const {
+    const f32 x = (2.0f * screen_x) / std::max(viewport_w, 1.0f) - 1.0f;
+    const f32 y = 1.0f - (2.0f * screen_y) / std::max(viewport_h, 1.0f);
+    const Mat4 inv = glm::inverse(view_projection_matrix());
+    Vec4 near_p = inv * Vec4(x, y, -1.0f, 1.0f);
+    Vec4 far_p = inv * Vec4(x, y, 1.0f, 1.0f);
+    near_p /= near_p.w;
+    far_p /= far_p.w;
+    out_origin = Vec3(near_p);
+    out_dir = glm::normalize(Vec3(far_p - near_p));
+}
+
+bool Camera::ray_plane_y(const Vec3& origin, const Vec3& dir, f32 plane_y,
+                         Vec3& out_hit) noexcept {
+    if (std::fabs(dir.y) < 1.0e-6f) {
+        return false;
+    }
+    const f32 t = (plane_y - origin.y) / dir.y;
+    if (t < 0.0f) {
+        return false;
+    }
+    out_hit = origin + dir * t;
+    return true;
+}
+
+bool Camera::ray_aabb(const Vec3& origin, const Vec3& dir, const AABB& box,
+                      f32& tmin) noexcept {
+    tmin = 0.0f;
+    f32 tmax = 1.0e30f;
+    for (int i = 0; i < 3; ++i) {
+        const f32 o = origin[i];
+        const f32 d = dir[i];
+        const f32 bmin = box.min[i];
+        const f32 bmax = box.max[i];
+        if (std::fabs(d) < 1.0e-8f) {
+            if (o < bmin || o > bmax) {
+                return false;
+            }
+            continue;
+        }
+        f32 t1 = (bmin - o) / d;
+        f32 t2 = (bmax - o) / d;
+        if (t1 > t2) {
+            std::swap(t1, t2);
+        }
+        tmin = std::max(tmin, t1);
+        tmax = std::min(tmax, t2);
+        if (tmin > tmax) {
+            return false;
+        }
+    }
+    return tmax >= 0.0f;
 }
 
 } // namespace aether::render

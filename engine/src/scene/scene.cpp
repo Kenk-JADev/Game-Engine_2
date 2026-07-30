@@ -3,6 +3,7 @@
  */
 #include <aether/scene/scene.hpp>
 #include <aether/core/logger.hpp>
+#include <aether/render/camera.hpp>
 
 #include <limits>
 
@@ -155,6 +156,29 @@ void Scene::collect_renderables(std::vector<render::Renderable>& out) const {
         r.visible = true;
         out.push_back(std::move(r));
     }
+}
+
+EntityId Scene::pick_ray(const render::Vec3& origin, const render::Vec3& dir) const {
+    EntityId best = kInvalidEntity;
+    f32 best_t = 1.0e30f;
+    for (const auto& o : objects_) {
+        if (!o.visible) {
+            continue;
+        }
+        render::AABB local;
+        if (o.mesh) {
+            local = o.mesh->bounds();
+        } else {
+            local = render::AABB{{-0.5f, 0, -0.5f}, {0.5f, 1.0f, 0.5f}};
+        }
+        const render::AABB world = local.transformed(o.transform.matrix());
+        f32 t = 0.0f;
+        if (render::Camera::ray_aabb(origin, dir, world, t) && t < best_t && t >= 0.0f) {
+            best_t = t;
+            best = o.id;
+        }
+    }
+    return best;
 }
 
 nlohmann::json Scene::to_json() const {
