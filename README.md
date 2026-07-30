@@ -45,7 +45,8 @@ Ohne X11/GL baut das System automatisch **NullWindow + NullRenderer** (Headless/
 
 ## GitHub Actions CI
 
-Bei jedem Push/PR läuft [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+Fertige Workflows: [`docs/dev/github-workflows/`](docs/dev/github-workflows/)  
+(einmalig nach `.github/workflows/` kopieren – Anleitung dort).
 
 | Job | Inhalt |
 |-----|--------|
@@ -54,7 +55,7 @@ Bei jedem Push/PR läuft [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
 | **Windows MSVC** | VS2022 x64, GLFW/OpenGL, Tests, Artifacts |
 | **macOS** | Best-effort |
 
-Release-Tags `v*` → [`.github/workflows/release.yml`](.github/workflows/release.yml) packt Linux/Windows-Zips.
+Release-Tags `v*` → `release.yml` packt Linux/Windows-Archive.
 
 Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 

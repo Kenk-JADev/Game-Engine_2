@@ -2,10 +2,15 @@
 
 ## Workflows
 
+Die kanonischen YAML-Dateien liegen unter
+[`docs/dev/github-workflows/`](github-workflows/) und müssen **einmalig** nach
+`.github/workflows/` kopiert werden (siehe dortige README – die CI-App darf
+Workflow-Dateien nicht selbst pushen).
+
 | Datei | Trigger | Zweck |
 |-------|---------|--------|
-| `.github/workflows/ci.yml` | push / PR / manuell | Build + Tests auf Linux, Windows, macOS |
-| `.github/workflows/release.yml` | Tag `v*` / manuell | Release-Pakete als Artifacts (+ GitHub Release) |
+| `ci.yml` → `.github/workflows/ci.yml` | push / PR / manuell | Build + Tests Linux/Windows/macOS |
+| `release.yml` → `.github/workflows/release.yml` | Tag `v*` / manuell | Release-Pakete + GitHub Release |
 
 ## Linux-Job (voll)
 

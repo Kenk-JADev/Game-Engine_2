@@ -58,3 +58,4 @@ desktop.ini
 third_party/mruby-src/
 mruby-*.tgz
 *.tgz
+.github/
