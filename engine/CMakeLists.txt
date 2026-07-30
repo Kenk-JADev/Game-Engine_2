@@ -44,6 +44,10 @@ set(AETHER_ENGINE_SOURCES
     src/game/player.cpp
     src/game/weather.cpp
     src/game/map_loader.cpp
+    src/game/inventory.cpp
+    src/game/save_system.cpp
+    src/game/scene_stack.cpp
+    src/game/shop.cpp
     # Animation
     src/anim/animation.cpp
     # Plugins

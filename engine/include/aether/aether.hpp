@@ -38,6 +38,10 @@
 #include <aether/game/player.hpp>
 #include <aether/game/weather.hpp>
 #include <aether/game/map_loader.hpp>
+#include <aether/game/inventory.hpp>
+#include <aether/game/save_system.hpp>
+#include <aether/game/scene_stack.hpp>
+#include <aether/game/shop.hpp>
 #include <aether/anim/animation.hpp>
 #include <aether/plugin/plugin_loader.hpp>
 #include <aether/phys/collision.hpp>

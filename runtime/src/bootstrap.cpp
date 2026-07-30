@@ -1,13 +1,17 @@
 /**
  * @file bootstrap.cpp
- * @brief Game-Runtime: Projekt → Map → Player → Events → Loop.
+ * @brief Game-Runtime mit Titel, Map, Menü, Dialog, Save/Load.
  */
 #include <aether/runtime/bootstrap.hpp>
 
 #include <aether/aether.hpp>
 #include <aether/anim/animation.hpp>
+#include <aether/game/inventory.hpp>
 #include <aether/game/map_loader.hpp>
 #include <aether/game/player.hpp>
+#include <aether/game/save_system.hpp>
+#include <aether/game/scene_stack.hpp>
+#include <aether/game/shop.hpp>
 #include <aether/game/weather.hpp>
 #include <aether/shared/project_descriptor.hpp>
 
@@ -50,13 +54,44 @@ EntityId find_player(scene::Scene& sc) {
     return kInvalidEntity;
 }
 
-void bind_ruby_game_api(ruby::RubyVM& vm, audio::AudioEngine& audio,
-                        game::WeatherSystem& weather, game::GameState& state,
-                        game::PlayerController& player) {
+struct RuntimeState {
+    shared::ProjectDescriptor project;
+    std::unique_ptr<scene::Scene> scene;
+    game::Database database;
+    game::PlayerController player;
+    game::FollowCamera follow_cam;
+    game::GameState game_state;
+    game::EventInterpreter interpreter{&game_state};
+    game::WeatherSystem weather;
+    game::PartyInventory inventory;
+    game::SaveSystem saves;
+    game::GameSceneStack scenes;
+    game::GameContext gctx;
+    render::Camera camera;
+    u32 map_id = 1;
+    i32 playtime = 0;
+    f64 playtime_accum = 0.0;
+    bool map_active = false;
+    std::unique_ptr<ruby::RubyVM> vm;
+};
+
+void open_dialog(RuntimeState& rs, std::vector<std::string> lines) {
+    rs.gctx.dialog_lines = std::move(lines);
+    rs.gctx.dialog_index = 0;
+    rs.gctx.dialog_open = true;
+    rs.scenes.push(std::make_unique<game::DialogScene>(), rs.gctx);
+}
+
+void bind_ruby(RuntimeState& rs, audio::AudioEngine& audio) {
+    if (!rs.vm) {
+        return;
+    }
+    auto& vm = *rs.vm;
     audio::AudioEngine* ap = &audio;
-    game::WeatherSystem* wp = &weather;
-    game::GameState* sp = &state;
-    game::PlayerController* pp = &player;
+    game::WeatherSystem* wp = &rs.weather;
+    game::GameState* sp = &rs.game_state;
+    game::PlayerController* pp = &rs.player;
+    game::PartyInventory* inv = &rs.inventory;
 
     vm.define_function(
         {"Audio", "bgm_play", -1, [ap](const std::vector<std::string>& args) {
@@ -78,53 +113,41 @@ void bind_ruby_game_api(ruby::RubyVM& vm, audio::AudioEngine& audio,
              return std::string("nil");
          }});
     vm.define_function(
-        {"Audio", "bgm_stop", -1, [ap](const std::vector<std::string>& args) {
-             const i32 fade = args.empty() ? 0 : std::stoi(args[0]);
-             ap->bgm_stop(fade);
-             return std::string("nil");
-         }});
-
-    vm.define_function(
         {"Weather", "set", -1, [wp](const std::vector<std::string>& args) {
-             const auto type =
-                 args.empty() ? game::WeatherType::None : game::WeatherSystem::from_string(args[0]);
+             const auto type = args.empty() ? game::WeatherType::None
+                                            : game::WeatherSystem::from_string(args[0]);
              const f32 power = args.size() > 1 ? std::stof(args[1]) : 5.0f;
              wp->set(type, power, 0.5f);
              return std::string("nil");
          }});
-    vm.define_function({"Weather", "clear", -1, [wp](const std::vector<std::string>&) {
-                            wp->clear(0.5f);
-                            return std::string("nil");
+    vm.define_function({"Player", "x", 0, [pp](const std::vector<std::string>&) {
+                            return std::to_string(pp->position().x);
                         }});
-
+    vm.define_function({"Player", "z", 0, [pp](const std::vector<std::string>&) {
+                            return std::to_string(pp->position().z);
+                        }});
     vm.define_function(
-        {"Player", "x", 0, [pp](const std::vector<std::string>&) {
-             return std::to_string(pp->position().x);
-         }});
-    vm.define_function(
-        {"Player", "y", 0, [pp](const std::vector<std::string>&) {
-             return std::to_string(pp->position().y);
-         }});
-    vm.define_function(
-        {"Player", "z", 0, [pp](const std::vector<std::string>&) {
-             return std::to_string(pp->position().z);
-         }});
-    vm.define_function(
-        {"Player", "transfer", -1, [pp](const std::vector<std::string>& args) {
-             // map_id, x, y, z ignored map switch here – set pos
-             if (args.size() >= 4) {
-                 pp->set_position({std::stof(args[1]), std::stof(args[2]), std::stof(args[3])});
-             } else if (args.size() >= 3) {
-                 pp->set_position({std::stof(args[1]), 0.0f, std::stof(args[2])});
+        {"Inventory", "gain", -1, [inv](const std::vector<std::string>& args) {
+             if (args.size() >= 1) {
+                 // name or id – try id
+                 try {
+                     const u32 id = static_cast<u32>(std::stoul(args[0]));
+                     const i32 n = args.size() > 1 ? std::stoi(args[1]) : 1;
+                     inv->gain_item(id, n);
+                 } catch (...) {
+                 }
              }
              return std::string("nil");
          }});
-
-    // Switches/variables helpers for scripts
+    vm.define_function(
+        {"Inventory", "gold", 0, [inv](const std::vector<std::string>&) {
+             return std::to_string(inv->gold());
+         }});
     vm.define_function(
         {"Game", "switch", 1, [sp](const std::vector<std::string>& args) -> std::string {
              if (args.empty()) return "false";
-             return sp->get_switch(static_cast<u32>(std::stoul(args[0]))) ? "true" : "false";
+             return sp->get_switch(static_cast<u32>(std::stoul(args[0]))) ? "true"
+                                                                          : "false";
          }});
     vm.define_function(
         {"Game", "set_switch", 2, [sp](const std::vector<std::string>& args) {
@@ -134,6 +157,237 @@ void bind_ruby_game_api(ruby::RubyVM& vm, audio::AudioEngine& audio,
              }
              return std::string("nil");
          }});
+}
+
+bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
+                   const render::Vec3* override_pos) {
+    const auto map_file =
+        game::map_path_for_id(rs.project.root_dir / rs.project.maps_path, map_id);
+    auto map = game::load_map(map_file, nullptr, renderer);
+    if (!map.scene) {
+        return false;
+    }
+    rs.scene = std::move(map.scene);
+    rs.map_id = map_id;
+
+    EntityId player_id = find_player(*rs.scene);
+    if (player_id == kInvalidEntity) {
+        render::Transform pt;
+        pt.position = override_pos ? *override_pos
+                                   : render::Vec3{static_cast<f32>(rs.project.start.x), 0.f,
+                                                  static_cast<f32>(rs.project.start.z)};
+        pt.scale = {0.6f, 1.2f, 0.6f};
+        auto mesh = render::Mesh::create_cube(1.0f);
+        if (renderer) renderer->upload_mesh(*mesh);
+        player_id = rs.scene->place(scene::ObjectType::Character, "Player", mesh, pt);
+        if (auto* p = rs.scene->find(player_id)) {
+            p->material.albedo = render::Color{0.2f, 0.55f, 1.0f, 1.0f};
+        }
+    }
+
+    u32 col = 0;
+    if (auto* p = rs.scene->find(player_id)) {
+        col = p->collision_id;
+        if (override_pos) {
+            p->transform.position = *override_pos;
+            if (col) {
+                rs.scene->collision().set_transform(col, p->transform);
+            }
+        }
+    }
+    rs.player.bind(rs.scene.get(), player_id, col);
+    if (override_pos) {
+        rs.player.set_position(*override_pos);
+    } else if (auto* p = rs.scene->find(player_id)) {
+        rs.player.set_position(p->transform.position);
+    }
+    rs.follow_cam.snap(rs.player.position());
+    rs.map_active = true;
+    return true;
+}
+
+void start_new_game(RuntimeState& rs, render::Renderer* renderer) {
+    rs.game_state.clear();
+    rs.inventory.setup_from_database(rs.database);
+    rs.weather.clear(0.0f);
+    rs.playtime = 0;
+    const render::Vec3 start{static_cast<f32>(rs.project.start.x), 0.f,
+                             static_cast<f32>(rs.project.start.z)};
+    load_map_into(rs, renderer, static_cast<u32>(rs.project.start.map_id), &start);
+    rs.scenes.clear();
+    rs.scenes.push(std::make_unique<game::MapScene>(), rs.gctx);
+    rs.gctx.status_line = "Neues Spiel";
+    // welcome potion
+    if (!rs.database.items.empty()) {
+        rs.inventory.gain_item(rs.database.items.front().id, 3);
+    }
+}
+
+void do_save(RuntimeState& rs, int slot) {
+    if (!rs.scene) {
+        return;
+    }
+    auto data = game::SaveSystem::capture(
+        rs.project.graphics.title, rs.map_id, rs.scene->name(), rs.player.position(),
+        rs.player.facing(), rs.inventory, rs.game_state, rs.weather, rs.playtime);
+    auto r = rs.saves.save(slot, data);
+    rs.gctx.status_line = r ? ("Gespeichert Slot " + std::to_string(slot))
+                            : r.error().what();
+    core::log_info("Runtime", rs.gctx.status_line);
+}
+
+bool do_load(RuntimeState& rs, render::Renderer* renderer, int slot) {
+    auto loaded = rs.saves.load(slot);
+    if (!loaded) {
+        rs.gctx.status_line = loaded.error().what();
+        return false;
+    }
+    const auto& d = loaded.value();
+    game::SaveSystem::apply_state(d, rs.game_state, rs.inventory, rs.weather);
+    rs.playtime = d.header.playtime_seconds;
+    if (!load_map_into(rs, renderer, d.map_id, &d.player_pos)) {
+        return false;
+    }
+    rs.scenes.clear();
+    rs.scenes.push(std::make_unique<game::MapScene>(), rs.gctx);
+    rs.gctx.status_line = "Geladen Slot " + std::to_string(slot);
+    return true;
+}
+
+void push_menu(RuntimeState& rs, render::Renderer* renderer) {
+    auto menu = std::make_unique<game::MenuScene>();
+    menu->set_callback([&rs, renderer](const std::string& action) {
+        if (action == "close" || action == "Weiterspielen") {
+            rs.scenes.pop(rs.gctx);
+            return;
+        }
+        if (action == "Beenden") {
+            rs.gctx.request_quit = true;
+            return;
+        }
+        if (action == "Titel") {
+            rs.scenes.replace(std::make_unique<game::TitleScene>(), rs.gctx);
+            rs.map_active = false;
+            return;
+        }
+        if (action == "Items") {
+            std::vector<std::string> lines;
+            lines.push_back("Gold: " + std::to_string(rs.inventory.gold()));
+            if (rs.inventory.items().empty()) {
+                lines.push_back("(keine Items)");
+            } else {
+                for (const auto& it : rs.inventory.items()) {
+                    std::string name = "Item#" + std::to_string(it.item_id);
+                    for (const auto& d : rs.database.items) {
+                        if (d.id == it.item_id) {
+                            name = d.name;
+                            break;
+                        }
+                    }
+                    lines.push_back(name + " x" + std::to_string(it.count));
+                }
+            }
+            if (!rs.inventory.party().empty()) {
+                const auto& m = rs.inventory.party().front();
+                lines.push_back(m.name + " Lv" + std::to_string(m.level) + " HP " +
+                                std::to_string(m.hp) + "/" + std::to_string(m.max_hp));
+            }
+            // close menu first then dialog
+            rs.scenes.pop(rs.gctx);
+            open_dialog(rs, std::move(lines));
+            return;
+        }
+        if (action == "Speichern") {
+            rs.gctx.save_mode = true;
+            rs.scenes.pop(rs.gctx);
+            auto sl = std::make_unique<game::SaveLoadScene>();
+            sl->set_callback([&rs](int slot, bool is_save) {
+                rs.scenes.pop(rs.gctx);
+                if (slot > 0 && is_save) {
+                    do_save(rs, slot);
+                }
+            });
+            rs.scenes.push(std::move(sl), rs.gctx);
+            return;
+        }
+        if (action == "Laden") {
+            rs.gctx.save_mode = false;
+            rs.scenes.pop(rs.gctx);
+            auto sl = std::make_unique<game::SaveLoadScene>();
+            sl->set_callback([&rs, renderer](int slot, bool is_save) {
+                rs.scenes.pop(rs.gctx);
+                if (slot > 0 && !is_save) {
+                    do_load(rs, renderer, slot);
+                }
+            });
+            rs.scenes.push(std::move(sl), rs.gctx);
+            return;
+        }
+    });
+    rs.scenes.push(std::move(menu), rs.gctx);
+}
+
+void update_map_gameplay(RuntimeState& rs, input::InputManager& input, f64 fixed_dt) {
+    if (!rs.map_active || !rs.scene) {
+        return;
+    }
+    // Don't move while overlays open
+    if (rs.scenes.current() && rs.scenes.current()->id() != game::GameSceneId::Map) {
+        return;
+    }
+
+    if (rs.interpreter.is_running()) {
+        rs.interpreter.update();
+        // collect messages into dialog
+        if (!rs.interpreter.messages().empty() && !rs.gctx.dialog_open) {
+            open_dialog(rs, rs.interpreter.messages());
+        }
+        return;
+    }
+
+    rs.player.update_movement(input, fixed_dt, &rs.scene->collision());
+
+    if (input.was_pressed("confirm")) {
+        const EntityId target = rs.player.find_interact_target(*rs.scene);
+        if (target != kInvalidEntity) {
+            if (auto* obj = rs.scene->find(target);
+                obj && obj->map_event && !obj->map_event->pages.empty()) {
+                rs.interpreter.set_script_handler([&](const std::string& code) {
+                    if (rs.vm) {
+                        auto r = rs.vm->eval(code);
+                        if (!r.ok) {
+                            core::log_warn("Event", r.error);
+                        }
+                    }
+                });
+                rs.interpreter.set_transfer_handler(
+                    [&](u32 map_id, f32 x, f32 y, f32 z, i32) {
+                        const render::Vec3 pos{x, y, z};
+                        load_map_into(rs, rs.gctx.renderer, map_id, &pos);
+                    });
+                rs.interpreter.start(obj->map_event->pages[0].commands);
+                // Run until wait or end; messages shown via dialog
+                while (rs.interpreter.is_running()) {
+                    const auto before = rs.interpreter.messages().size();
+                    rs.interpreter.update();
+                    if (rs.interpreter.messages().size() > before) {
+                        // pause interpreter by opening dialog – copy messages
+                        open_dialog(rs, rs.interpreter.messages());
+                        break;
+                    }
+                    if (!rs.interpreter.is_running()) {
+                        break;
+                    }
+                    // safety: break infinite
+                    break;
+                }
+            }
+        }
+    }
+
+    if (input.was_pressed("menu")) {
+        push_menu(rs, rs.gctx.renderer);
+    }
 }
 
 } // namespace
@@ -172,29 +426,31 @@ int run_game(const RuntimeOptions& options) {
         return 0;
     }
 
-    shared::ProjectDescriptor project;
+    RuntimeState rs;
     std::string err;
-    if (!shared::load_project_descriptor(options.project_path, project, &err)) {
+    if (!shared::load_project_descriptor(options.project_path, rs.project, &err)) {
         std::cerr << "Failed to load project: " << err << '\n';
         return 1;
     }
 
-    core::log_info("Runtime", "Loading project '" + project.name + "' from " +
-                                  project.root_dir.string());
+    core::log_info("Runtime", "Loading project '" + rs.project.name + "' from " +
+                                  rs.project.root_dir.string());
 
-    auto ctx = core::EngineContext::create(make_engine_config(project, options));
+    auto ctx = core::EngineContext::create(make_engine_config(rs.project, options));
     ctx->start();
 
-    res::ResourceManager resources(&ctx->thread_pool());
-    resources.mount("data", project.root_dir / project.data_path);
-    resources.mount("maps", project.root_dir / project.maps_path);
-    resources.mount("graphics", project.root_dir / project.graphics_path);
-    resources.mount("audio", project.root_dir / project.audio_path);
-    resources.mount("scripts", project.root_dir / "scripts");
+    rs.saves = game::SaveSystem(rs.project.root_dir / "saves");
 
-    // Database
-    auto db_res = game::Database::load_from_directory(project.root_dir / project.data_path);
-    game::Database database = db_res ? std::move(db_res.value()) : game::Database::make_default();
+    res::ResourceManager resources(&ctx->thread_pool());
+    resources.mount("data", rs.project.root_dir / rs.project.data_path);
+    resources.mount("maps", rs.project.root_dir / rs.project.maps_path);
+    resources.mount("graphics", rs.project.root_dir / rs.project.graphics_path);
+    resources.mount("audio", rs.project.root_dir / rs.project.audio_path);
+    resources.mount("scripts", rs.project.root_dir / "scripts");
+
+    auto db_res =
+        game::Database::load_from_directory(rs.project.root_dir / rs.project.data_path);
+    rs.database = db_res ? std::move(db_res.value()) : game::Database::make_default();
 
     window::WindowDesc wdesc = window::Window::desc_from_graphics(ctx->config().graphics);
     auto window = window::Window::create(
@@ -202,7 +458,6 @@ int run_game(const RuntimeOptions& options) {
         options.headless ? std::optional(window::WindowBackend::Null) : std::nullopt);
 
     render::RendererDesc rdesc;
-    // Auto GL if window supports it
     rdesc.backend = (window && window->backend() == window::WindowBackend::Glfw)
                         ? render::RendererBackend::OpenGL
                         : render::RendererBackend::Null;
@@ -223,120 +478,44 @@ int run_game(const RuntimeOptions& options) {
 #endif
         ctx->config().audio);
 
-    // Map
-    const auto map_file =
-        game::map_path_for_id(project.root_dir / project.maps_path,
-                              static_cast<u32>(project.start.map_id));
-    auto map = game::load_map(map_file, &resources, renderer.get());
-    if (!map.scene) {
-        std::cerr << "Failed to load map\n";
-        return 1;
-    }
-    std::unique_ptr<scene::Scene> scene = std::move(map.scene);
-
-    // Player
-    EntityId player_id = find_player(*scene);
-    if (player_id == kInvalidEntity) {
-        // create player
-        render::Transform pt;
-        pt.position = {static_cast<f32>(project.start.x), 0.0f,
-                       static_cast<f32>(project.start.z)};
-        pt.scale = {0.6f, 1.2f, 0.6f};
-        auto mesh = render::Mesh::create_cube(1.0f);
-        if (renderer) renderer->upload_mesh(*mesh);
-        player_id = scene->place(scene::ObjectType::Character, "Player", mesh, pt);
-        if (auto* p = scene->find(player_id)) {
-            p->material.albedo = render::Color{0.2f, 0.55f, 1.0f, 1.0f};
-        }
-    } else {
-        if (auto* p = scene->find(player_id)) {
-            p->transform.position = {static_cast<f32>(project.start.x), 0.0f,
-                                     static_cast<f32>(project.start.z)};
-            if (p->collision_id) {
-                scene->collision().set_transform(p->collision_id, p->transform);
-            }
-        }
-    }
-
-    game::PlayerController player;
-    u32 player_col = 0;
-    if (auto* p = scene->find(player_id)) {
-        player_col = p->collision_id;
-    }
-    player.bind(scene.get(), player_id, player_col);
-    player.set_position({static_cast<f32>(project.start.x), 0.0f,
-                         static_cast<f32>(project.start.z)});
-
-    game::FollowCamera follow_cam;
-    follow_cam.snap(player.position());
-
-    render::Camera camera;
     const f32 aspect = static_cast<f32>(wdesc.width) /
                        static_cast<f32>(wdesc.height > 0 ? wdesc.height : 1);
-    camera.set_perspective(45.0f, aspect, 0.1f, 500.0f);
-    follow_cam.apply(camera);
+    rs.camera.set_perspective(45.0f, aspect, 0.1f, 500.0f);
 
-    // Game state + event interpreter
-    game::GameState game_state;
-    game::EventInterpreter interpreter(&game_state);
-    std::vector<std::string> dialogue_log;
-
-    game::WeatherSystem weather;
-    anim::Animator bob_anim;
-    // idle bob applied as offset on NPCs optionally – skip heavy
-
-    // Plugins + Ruby
+    // Ruby / plugins
     plugin::PluginLoader plugins;
-    const auto plug_count = plugins.scan(project.root_dir / "plugins");
-
-    std::unique_ptr<ruby::RubyVM> vm;
+    const auto plug_count = plugins.scan(rs.project.root_dir / "plugins");
     if (options.enable_ruby) {
-        vm = ruby::RubyVM::create();
-        vm->define_engine_api();
-        bind_ruby_game_api(*vm, *audio, weather, game_state, player);
-
-        interpreter.set_script_handler([&](const std::string& code) {
-            if (vm) {
-                auto r = vm->eval(code);
-                if (!r.ok) {
-                    core::log_warn("Event", "script: " + r.error);
-                }
-            }
-        });
-        interpreter.set_transfer_handler([&](u32 /*map_id*/, f32 x, f32 y, f32 z, i32 /*dir*/) {
-            player.set_position({x, y, z});
-            follow_cam.snap(player.position());
-        });
-
-        const auto entry = project.root_dir / project.scripts.entry;
-        auto result = vm->load_file(entry.string());
+        rs.vm = ruby::RubyVM::create();
+        rs.vm->define_engine_api();
+        bind_ruby(rs, *audio);
+        auto result = rs.vm->load_file((rs.project.root_dir / rs.project.scripts.entry).string());
         if (!result.ok) {
-            core::log_warn("Runtime", "Script entry failed: " + result.error);
-        } else {
-            core::log_info("Runtime", "Scripts loaded: " + project.scripts.entry);
+            core::log_warn("Runtime", "Script: " + result.error);
         }
         if (plug_count > 0) {
-            auto pr = plugins.activate_all(*vm);
-            if (!pr) {
-                core::log_warn("Runtime", "Plugin activate: " + pr.error().what());
-            }
+            (void)plugins.activate_all(*rs.vm);
         }
-    } else {
-        interpreter.set_transfer_handler([&](u32, f32 x, f32 y, f32 z, i32) {
-            player.set_position({x, y, z});
-            follow_cam.snap(player.position());
-        });
     }
 
-    // Viewport resize
+    rs.gctx.input = &input;
+    rs.gctx.renderer = renderer.get();
+
+    // Start at title (headless CI: auto new game for smoke)
+    if (options.headless && options.max_frames > 0) {
+        start_new_game(rs, renderer.get());
+    } else {
+        rs.scenes.push(std::make_unique<game::TitleScene>(), rs.gctx);
+    }
+
     if (window) {
         ctx->events().subscribe<window::WindowFramebufferResizeEvent>(
             [&](const window::WindowFramebufferResizeEvent& e) {
                 if (renderer && e.width > 0 && e.height > 0) {
                     renderer->set_viewport(0, 0, e.width, e.height);
-                    camera.set_perspective(45.0f, static_cast<f32>(e.width) /
-                                                      static_cast<f32>(e.height),
-                                           0.1f, 500.0f);
+                    rs.camera.set_perspective(
+                        45.0f, static_cast<f32>(e.width) / static_cast<f32>(e.height), 0.1f,
+                        500.0f);
                 }
             });
     }
@@ -363,68 +542,79 @@ int run_game(const RuntimeOptions& options) {
         }
 
         const f64 dt = ctx->time().delta_seconds();
+        rs.gctx.delta = dt;
         audio->update(dt);
-        weather.update(dt);
+        rs.weather.update(dt);
+        rs.playtime_accum += dt;
+        while (rs.playtime_accum >= 1.0) {
+            rs.playtime_accum -= 1.0;
+            ++rs.playtime;
+        }
 
-        // Escape / cancel exits in runtime
-        if (input.was_pressed("cancel") && !interpreter.is_running()) {
-            // only exit if no dialogue – second press cancels
-            if (options.headless) {
-                // ignore
-            } else {
-                running = false;
-            }
+        // Scene stack UI input
+        rs.scenes.update(rs.gctx);
+
+        // Title actions
+        if (rs.gctx.request_new_game) {
+            rs.gctx.request_new_game = false;
+            start_new_game(rs, renderer.get());
+        }
+        if (rs.gctx.request_continue) {
+            rs.gctx.request_continue = false;
+            // open load scene from title
+            rs.gctx.save_mode = false;
+            auto sl = std::make_unique<game::SaveLoadScene>();
+            sl->set_callback([&](int slot, bool is_save) {
+                rs.scenes.pop(rs.gctx);
+                if (slot > 0 && !is_save) {
+                    if (!do_load(rs, renderer.get(), slot)) {
+                        // back to title if fail
+                        if (!rs.map_active) {
+                            rs.scenes.replace(std::make_unique<game::TitleScene>(), rs.gctx);
+                        }
+                    }
+                } else if (slot < 0 && !rs.map_active) {
+                    rs.scenes.replace(std::make_unique<game::TitleScene>(), rs.gctx);
+                }
+            });
+            // if currently title, push load on top
+            rs.scenes.push(std::move(sl), rs.gctx);
+        }
+        if (rs.gctx.request_quit) {
+            running = false;
+        }
+
+        // Dialog finished → pop
+        if (rs.scenes.current() &&
+            rs.scenes.current()->id() == game::GameSceneId::Dialog && !rs.gctx.dialog_open) {
+            rs.scenes.pop(rs.gctx);
         }
 
         ctx->time().drain_fixed_steps([&](f64 fixed_dt) {
-            if (interpreter.is_running()) {
-                interpreter.update();
-                return;
-            }
-
-            player.update_movement(input, fixed_dt, &scene->collision());
-
-            // Interact
-            if (input.was_pressed("confirm")) {
-                const EntityId target = player.find_interact_target(*scene);
-                if (target != kInvalidEntity) {
-                    if (auto* obj = scene->find(target); obj && obj->map_event &&
-                                                         !obj->map_event->pages.empty()) {
-                        dialogue_log.clear();
-                        interpreter.set_script_handler([&](const std::string& code) {
-                            if (vm) {
-                                auto r = vm->eval(code);
-                                if (!r.ok) core::log_warn("Event", r.error);
-                            }
-                        });
-                        interpreter.start(obj->map_event->pages[0].commands);
-                        // drain messages into log as they appear each update
-                    }
-                }
-            }
-
-            if (interpreter.is_running()) {
-                interpreter.update();
-            }
+            rs.gctx.fixed_delta = fixed_dt;
+            update_map_gameplay(rs, input, fixed_dt);
         });
 
-        // Collect new messages
-        for (const auto& m : interpreter.messages()) {
-            if (dialogue_log.empty() || dialogue_log.back() != m) {
-                dialogue_log.push_back(m);
-                core::log_info("Dialogue", m);
-            }
+        if (rs.map_active) {
+            rs.follow_cam.update(rs.player.position(), dt);
+            rs.follow_cam.apply(rs.camera);
         }
 
-        follow_cam.update(player.position(), dt);
-        follow_cam.apply(camera);
+        rs.scenes.draw_overlay(rs.gctx);
+        if (frames % 60 == 0 && !rs.gctx.status_line.empty()) {
+            core::log_debug("UI", rs.gctx.status_line);
+        }
 
         if (renderer) {
-            renderer->set_clear_color(weather.clear_color_mod(base_clear));
+            renderer->set_clear_color(rs.weather.clear_color_mod(base_clear));
             std::vector<render::Renderable> items;
-            scene->collect_renderables(items);
+            if (rs.map_active && rs.scene) {
+                rs.scene->collect_renderables(items);
+            }
             renderer->begin_frame();
-            renderer->draw(camera, items);
+            if (rs.map_active) {
+                renderer->draw(rs.camera, items);
+            }
             renderer->end_frame();
         }
         if (window) {
@@ -443,8 +633,6 @@ int run_game(const RuntimeOptions& options) {
     }
 
     core::log_info("Runtime", "Exiting after " + std::to_string(frames) + " frame(s)");
-    (void)database;
-    (void)bob_anim;
 
     if (window) {
         window.reset();
