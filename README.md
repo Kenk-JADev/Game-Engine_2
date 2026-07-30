@@ -8,22 +8,19 @@ Eigenständige **3D-RPG-Maker-Software** mit eigener Engine, eigenem Editor und 
 
 | Target | Beschreibung |
 |--------|--------------|
-| **aether_engine** | C++20-Engine (Core, Window, Render, Input, Audio, Resources, Ruby, Events, DB, Plugins) |
-| **AetherEditor** | Editor-Konzept: Projekt · Karte · Datenbank · Events · Skripte · Testspiel · Export |
-| **Game** | Runtime – lädt Projekt und startet das Spiel |
+| **aether_engine** | C++20-Engine (Core → Scene, Phys, Nav, Ruby, …) |
+| **AetherEditor** | RPG-Maker-UI: Projekt · Karte · Datenbank · Events · Skripte · Testspiel · Export |
+| **Game** | Runtime – lädt Projekt, Scripts, Plugins und startet das Spiel |
 
 ## Designziele
 
-- Anfänger erstellen RPGs **ohne Programmierung** (Events, Datenbank, Drag & Drop).
+- Anfänger erstellen RPGs **ohne Programmierung** (Events, Datenbank, Objekt-Palette).
 - Fortgeschrittene nutzen **Ruby** für Spiellogik und Plugins.
-- Zielperformance: **60 FPS** auf älteren PCs (i3-4xxx / HD 4600, 8 GB RAM).
-- Stilisierte 3D-RPGs – Forward-Rendering, Frustum-Culling, LOD, kein Raytracing.
-- **Keine** Unity-Style Component-/Collider-UI im Editor.
+- **60 FPS**-Ziel auf älteren PCs (i3-4xxx / HD 4600, 8 GB RAM).
+- Forward-Rendering, Frustum-Culling, LOD – **kein** Raytracing.
+- **Keine** Unity-Style Component-/Collider-UI – Kollision & Navigation automatisch.
 
 ## Build
-
-Voraussetzungen: CMake ≥ 3.21, C++20-Compiler, Git.  
-Optional für echtes Fenster: `libx11-dev libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev`.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -31,7 +28,16 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-Binaries: `build/bin/AetherEditor`, `build/bin/Game`
+**Optional für echtes Fenster + ImGui-GUI + OpenGL:**
+
+```bash
+sudo apt install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/bin/AetherEditor --gui --project samples/demo_project
+```
+
+Ohne X11/GL baut das System automatisch **NullWindow + NullRenderer** (Headless/CI).
 
 ### Runtime
 
@@ -40,44 +46,50 @@ Binaries: `build/bin/AetherEditor`, `build/bin/Game`
 ./build/bin/Game --project /path/MyGame
 ```
 
-### Editor (CLI-Phase)
+### Editor
 
 ```bash
 ./build/bin/AetherEditor --new /tmp/MyGame
-./build/bin/AetherEditor --project /tmp/MyGame --testplay
+./build/bin/AetherEditor --project /tmp/MyGame --testplay --headless
+./build/bin/AetherEditor --gui --project /tmp/MyGame   # mit Display
 ```
 
-## Modulstatus
+**Editor-Tabs (verbindlich):** Projekt | Karte | Datenbank | Events | Skripte | Testspiel | Export
 
-| # | Modul | Status |
-|---|-------|--------|
-| 1–3 | Architektur, Ordner, Build | ✅ |
-| 4 | Core (Logger, Time, Config, ThreadPool, EventBus, Context) | ✅ |
-| 5 | Fenster (Null + optional GLFW) | ✅ |
-| 6 | Renderer (Culling, LOD, Shader-Quellen; Null-Backend) | ✅ |
-| 7 | Input (Action-Mapping RPG-Stil) | ✅ |
-| 8 | Audio (BGM/BGS/ME/SE) | ✅ |
-| 9 | Ressourcen (VFS, Cache, JSON) | ✅ |
-| 10 | Ruby (Stub-VM + Engine-API-Module) | ✅ |
-| 11 | Editor CLI | ✅ |
-| 12 | Runtime Game | ✅ |
-| 13 | Eventsystem (Interpreter + JSON) | ✅ |
-| 14 | Datenbank (actors/enemies/items/skills) | ✅ |
-| 15 | Export-Paket | ✅ |
-| 16 | Plugin-Loader | ✅ |
-| 17 | Tests (11 automatisiert) | ✅ |
+## Features (Stand)
 
-## Nächste Ausbaustufen
+| Bereich | Inhalt |
+|---------|--------|
+| Core | Logger, Time, Config, ThreadPool, EventBus, EngineContext |
+| Window | Null + GLFW (optional) |
+| Renderer | Null + OpenGL 3.3/GLAD (optional), Culling, LOD, GLSL 330 |
+| Input | RPG-Actions (confirm/cancel/WASD…) |
+| Audio | BGM/BGS/ME/SE – Null + **miniaudio** |
+| Resources | VFS, Cache, JSON, **stb_image**, OBJ-Loader |
+| Ruby | Stub-VM + Engine-API (mruby-Quellen unter `third_party/mruby-src` für späteren Host-Ruby-Build) |
+| Scene | Objekte platzieren → **auto Kollision** |
+| Physics | AABB move_and_collide, Trigger |
+| Navigation | Grid-Bake aus Kollision, A*, NavAgent |
+| Events | Interpreter (Message, Switch, Variable, Transfer, Script, …) |
+| Database | actors/enemies/items/skills/system JSON |
+| Plugins | `plugin.json` + `main.rb` |
+| Export | Spielpaket mit Game-Binary |
+| Editor UI | ImGui (wenn GL) / Headless-CLI |
+| Tests | 13 automatisierte Tests |
 
-- OpenGL-3.3-Renderer-Pfad (GLAD) bei vorhandenem Display
-- mruby statt Stub-VM
-- miniaudio / stb_image / assimp
-- Editor-GUI (Karten-View, DB-Tabs, visueller Event-Editor, Script-IDE)
-- Physik-Kollision & Navigation automatisch beim Objekt-Drop
+## Vendored Third-Party
+
+- `third_party/glad` – OpenGL 3.3 loader  
+- `third_party/stb` – stb_image  
+- `third_party/miniaudio` – Audio  
+- `third_party/imgui` – Editor-UI  
+- `third_party/mruby-src` – für künftigen mruby-Build (benötigt Host-Ruby)
+
+FetchContent: nlohmann/json, glm, optional GLFW.
 
 ## Dokumentation
 
-Siehe [`docs/architecture/`](docs/architecture/) – ein Dokument pro Modul.
+Siehe [`docs/architecture/`](docs/architecture/).
 
 ## Lizenz
 

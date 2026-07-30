@@ -5,6 +5,10 @@
 
 #include "null_audio.hpp"
 
+#if defined(AETHER_WITH_MINIAUDIO)
+#  include "miniaudio_engine.hpp"
+#endif
+
 #include <aether/core/logger.hpp>
 
 #include <algorithm>
@@ -28,8 +32,15 @@ std::unique_ptr<AudioEngine> AudioEngine::create(AudioBackend backend,
                                                  const core::AudioConfig& config) {
     switch (backend) {
     case AudioBackend::MiniAudio:
-        core::log_warn("Audio", "MiniAudio backend not linked – using Null");
+#if defined(AETHER_WITH_MINIAUDIO)
+    {
+        auto eng = std::make_unique<MiniAudioEngine>(config);
+        return eng;
+    }
+#else
+        core::log_warn("Audio", "MiniAudio not enabled at build time – using Null");
         [[fallthrough]];
+#endif
     case AudioBackend::Null:
     default:
         return std::make_unique<NullAudioEngine>(config);

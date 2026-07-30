@@ -19,7 +19,8 @@ aether_add_unit_test(aether_audio_test  unit/audio_test.cpp)
 aether_add_unit_test(aether_res_test     unit/res_test.cpp)
 aether_add_unit_test(aether_ruby_test    unit/ruby_test.cpp)
 aether_add_unit_test(aether_project_test unit/project_test.cpp)
-aether_add_unit_test(aether_game_test    unit/game_test.cpp)
+aether_add_unit_test(aether_game_test     unit/game_test.cpp)
+aether_add_unit_test(aether_phys_nav_test unit/phys_nav_test.cpp)
 
 # Runtime smoke (headless, few frames) – uses samples if present
 add_test(
@@ -27,5 +28,13 @@ add_test(
     COMMAND Game --project ${CMAKE_SOURCE_DIR}/samples/demo_project --headless --max-frames 5
 )
 set_tests_properties(aether_runtime_smoke PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+add_test(
+    NAME aether_editor_smoke
+    COMMAND AetherEditor --headless --new ${CMAKE_BINARY_DIR}/tmp_editor_proj --testplay --max-frames 3
+)
+set_tests_properties(aether_editor_smoke PROPERTIES
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )

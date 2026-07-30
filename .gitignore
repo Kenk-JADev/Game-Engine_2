@@ -55,3 +55,6 @@ third_party/**/build/
 # OS
 Thumbs.db
 desktop.ini
+third_party/mruby-src/
+mruby-*.tgz
+*.tgz

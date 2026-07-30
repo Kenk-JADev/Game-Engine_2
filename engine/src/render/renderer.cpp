@@ -6,7 +6,12 @@
 
 #include "null_renderer.hpp"
 
+#if defined(AETHER_WITH_OPENGL)
+#  include "gl_renderer.hpp"
+#endif
+
 #include <aether/core/logger.hpp>
+#include <aether/window/window.hpp>
 
 #include <algorithm>
 
@@ -25,24 +30,26 @@ std::unique_ptr<Renderer> Renderer::create(const RendererDesc& desc,
                                            window::Window* window) {
     RendererDesc d = desc;
 
-    // Auto: OpenGL nur wenn Window ein GL-Backend hat
-    if (d.backend == RendererBackend::OpenGL) {
+    // Auto-select OpenGL when window has a real GL context
+    if (d.backend == RendererBackend::Null && window &&
+        window->backend() == window::WindowBackend::Glfw) {
 #if defined(AETHER_WITH_OPENGL)
-        // GL-Renderer folgt in Erweiterung – aktuell Fallback
-        core::log_warn("Renderer",
-                       "OpenGL backend requested but full GL path not linked yet – using Null");
-        d.backend = RendererBackend::Null;
-        (void)window;
-#else
-        core::log_warn("Renderer", "AETHER_WITH_OPENGL not enabled – using NullRenderer");
-        d.backend = RendererBackend::Null;
-        (void)window;
+        d.backend = RendererBackend::OpenGL;
 #endif
     }
 
-    if (window && d.backend == RendererBackend::Null) {
-        // Viewport-Hinweis aus Fenster
-        (void)window;
+    if (d.backend == RendererBackend::OpenGL) {
+#if defined(AETHER_WITH_OPENGL)
+        if (window && window->backend() == window::WindowBackend::Glfw) {
+            auto gl = std::make_unique<GlRenderer>(d, window);
+            return gl;
+        }
+        core::log_warn("Renderer", "OpenGL requested but no GLFW window – NullRenderer");
+        d.backend = RendererBackend::Null;
+#else
+        core::log_warn("Renderer", "AETHER_WITH_OPENGL not enabled – NullRenderer");
+        d.backend = RendererBackend::Null;
+#endif
     }
 
     return std::make_unique<NullRenderer>(std::move(d));
@@ -85,7 +92,6 @@ void Renderer::build_draw_list(const Camera& camera,
         out.push_back(item);
     }
 
-    // Opaque first (front-to-back), transparent back-to-front
     std::stable_sort(out.begin(), out.end(), [](const DrawItem& a, const DrawItem& b) {
         if (a.transparent != b.transparent) {
             return !a.transparent && b.transparent;

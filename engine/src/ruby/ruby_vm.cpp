@@ -5,6 +5,7 @@
 #include <aether/ruby/ruby_vm.hpp>
 #include <aether/core/logger.hpp>
 
+#include <cctype>
 #include <fstream>
 #include <sstream>
 
@@ -74,32 +75,32 @@ public:
         core::log_info("Ruby", "Engine API modules defined (stub)");
     }
 
-    EvalResult eval(std::string_view source, std::string_view filename) override {
-        sources_[std::string(filename)] = std::string(source);
-
-        // Minimaler Stub-Interpreter für Tests:
-        // 1) "return <literal>"
-        // 2) Module.method("arg") / Module.method
-        // 3) $global = "value"
-        std::string src(source);
-        // trim
-        while (!src.empty() && (src.back() == '\n' || src.back() == '\r' || src.back() == ' '))
+    EvalResult eval_line(std::string src) {
+        while (!src.empty() && (src.back() == '\n' || src.back() == '\r' || src.back() == ' ' ||
+                                src.back() == ';'))
             src.pop_back();
-        while (!src.empty() && (src.front() == ' ' || src.front() == '\n'))
+        while (!src.empty() && (src.front() == ' ' || src.front() == '\t'))
             src.erase(src.begin());
+        if (src.empty() || src.starts_with("#") || src.starts_with("module ") ||
+            src.starts_with("class ") || src.starts_with("end") || src.starts_with("def ") ||
+            src.starts_with("module_function") || src == "true" || src == "false" ||
+            src == "nil") {
+            EvalResult r;
+            r.ok = true;
+            r.value = "nil";
+            return r;
+        }
 
         if (src.starts_with("return ")) {
             EvalResult r;
             r.ok = true;
             r.value = src.substr(7);
-            // strip quotes
             if (r.value.size() >= 2 && r.value.front() == '"' && r.value.back() == '"') {
                 r.value = r.value.substr(1, r.value.size() - 2);
             }
             return r;
         }
 
-        // $name = "value"
         if (src.size() > 1 && src[0] == '$') {
             const auto eq = src.find('=');
             if (eq != std::string::npos) {
@@ -118,52 +119,85 @@ public:
             }
         }
 
-        // Module.method(...) 
+        // Only treat as Module.method if Module starts with uppercase letter
         const auto dot = src.find('.');
-        if (dot != std::string::npos) {
+        if (dot != std::string::npos && dot > 0 && std::isupper(static_cast<unsigned char>(src[0]))) {
             std::string mod = src.substr(0, dot);
-            std::string rest = src.substr(dot + 1);
-            std::string method;
-            std::vector<std::string> args;
-            const auto paren = rest.find('(');
-            if (paren == std::string::npos) {
-                method = rest;
-            } else {
-                method = rest.substr(0, paren);
-                std::string inside = rest.substr(paren + 1);
-                if (!inside.empty() && inside.back() == ')') inside.pop_back();
-                // simple split by comma
-                std::string cur;
-                for (char c : inside) {
-                    if (c == ',') {
+            // module name must be identifier
+            bool ok_mod = true;
+            for (char c : mod) {
+                if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_')) ok_mod = false;
+            }
+            if (ok_mod) {
+                std::string rest = src.substr(dot + 1);
+                std::string method;
+                std::vector<std::string> args;
+                const auto paren = rest.find('(');
+                if (paren == std::string::npos) {
+                    method = rest;
+                } else {
+                    method = rest.substr(0, paren);
+                    std::string inside = rest.substr(paren + 1);
+                    if (!inside.empty() && inside.back() == ')') inside.pop_back();
+                    std::string cur;
+                    for (char c : inside) {
+                        if (c == ',') {
+                            while (!cur.empty() && cur.front() == ' ') cur.erase(cur.begin());
+                            while (!cur.empty() && cur.back() == ' ') cur.pop_back();
+                            if (cur.size() >= 2 && cur.front() == '"' && cur.back() == '"')
+                                cur = cur.substr(1, cur.size() - 2);
+                            if (cur.starts_with(":")) cur = cur.substr(1);
+                            args.push_back(cur);
+                            cur.clear();
+                        } else {
+                            cur.push_back(c);
+                        }
+                    }
+                    if (!cur.empty()) {
                         while (!cur.empty() && cur.front() == ' ') cur.erase(cur.begin());
                         while (!cur.empty() && cur.back() == ' ') cur.pop_back();
                         if (cur.size() >= 2 && cur.front() == '"' && cur.back() == '"')
                             cur = cur.substr(1, cur.size() - 2);
                         if (cur.starts_with(":")) cur = cur.substr(1);
                         args.push_back(cur);
-                        cur.clear();
-                    } else {
-                        cur.push_back(c);
                     }
                 }
-                if (!cur.empty()) {
-                    while (!cur.empty() && cur.front() == ' ') cur.erase(cur.begin());
-                    while (!cur.empty() && cur.back() == ' ') cur.pop_back();
-                    if (cur.size() >= 2 && cur.front() == '"' && cur.back() == '"')
-                        cur = cur.substr(1, cur.size() - 2);
-                    if (cur.starts_with(":")) cur = cur.substr(1);
-                    args.push_back(cur);
+                // Skip unknown host methods quietly for multi-line boot scripts
+                if (find_host(mod, method)) {
+                    return call_host(mod, method, args);
                 }
             }
-            // strip trailing ? = 
-            return call_host(mod, method, args);
         }
 
         EvalResult r;
         r.ok = true;
         r.value = "nil";
         return r;
+    }
+
+    EvalResult eval(std::string_view source, std::string_view filename) override {
+        sources_[std::string(filename)] = std::string(source);
+        EvalResult last;
+        last.ok = true;
+        last.value = "nil";
+
+        std::string line;
+        for (char c : source) {
+            if (c == '\n') {
+                auto r = eval_line(line);
+                if (!r.ok) return r;
+                last = r;
+                line.clear();
+            } else {
+                line.push_back(c);
+            }
+        }
+        if (!line.empty()) {
+            auto r = eval_line(line);
+            if (!r.ok) return r;
+            last = r;
+        }
+        return last;
     }
 
     EvalResult load_file(std::string_view path) override {

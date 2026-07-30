@@ -113,7 +113,20 @@ int run_game(const RuntimeOptions& options) {
     }
 
     core::AudioConfig acfg = ctx->config().audio;
-    auto audio = audio::AudioEngine::create(audio::AudioBackend::Null, acfg);
+    auto audio = audio::AudioEngine::create(
+#if defined(AETHER_WITH_MINIAUDIO)
+        options.headless ? audio::AudioBackend::Null : audio::AudioBackend::MiniAudio,
+#else
+        audio::AudioBackend::Null,
+#endif
+        acfg);
+
+    // Plugins
+    plugin::PluginLoader plugins;
+    const auto plug_count = plugins.scan(project.root_dir / "plugins");
+    if (plug_count > 0) {
+        core::log_info("Runtime", "Found " + std::to_string(plug_count) + " plugin(s)");
+    }
 
     // Ruby
     std::unique_ptr<ruby::RubyVM> vm;
@@ -141,6 +154,12 @@ int run_game(const RuntimeOptions& options) {
             core::log_warn("Runtime", "Script entry failed: " + result.error);
         } else {
             core::log_info("Runtime", "Scripts loaded: " + project.scripts.entry);
+        }
+        if (plug_count > 0) {
+            auto pr = plugins.activate_all(*vm);
+            if (!pr) {
+                core::log_warn("Runtime", "Plugin activate: " + pr.error().what());
+            }
         }
     }
 

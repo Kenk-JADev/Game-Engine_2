@@ -4,6 +4,7 @@
 
 set(AETHER_EDITOR_SOURCES
     src/app/main.cpp
+    src/ui/editor_app.cpp
     src/export/exporter.cpp
 )
 
@@ -20,6 +21,21 @@ target_link_libraries(AetherEditor
         aether::engine
         aether::shared
 )
+
+# ImGui UI when available
+if(TARGET aether_imgui)
+    target_link_libraries(AetherEditor PRIVATE aether_imgui)
+    target_compile_definitions(AetherEditor PRIVATE AETHER_WITH_IMGUI=1)
+    if(COMMAND aether_add_imgui_backends)
+        aether_add_imgui_backends()
+    endif()
+    if(TARGET aether_imgui_backends)
+        target_link_libraries(AetherEditor PRIVATE aether_imgui_backends)
+        if(TARGET aether_glad)
+            target_link_libraries(AetherEditor PRIVATE aether_glad)
+        endif()
+    endif()
+endif()
 
 aether_apply_common_options(AetherEditor)
 

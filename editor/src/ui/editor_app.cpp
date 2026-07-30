@@ -1,0 +1,1034 @@
+/**
+ * @file editor_app.cpp
+ * @brief ImGui-basierter Editor mit RPG-Maker-Tabs.
+ */
+#include "editor_app.hpp"
+#include "export/exporter.hpp"
+
+#include <cstring>
+#include <fstream>
+#include <sstream>
+
+#if defined(AETHER_WITH_IMGUI)
+#  include <imgui.h>
+#  if defined(AETHER_WITH_GLFW) && defined(AETHER_WITH_OPENGL)
+#    include <imgui_impl_glfw.h>
+#    include <imgui_impl_opengl3.h>
+#    include <GLFW/glfw3.h>
+#    include <glad/glad.h>
+#  endif
+#endif
+
+namespace aether::editor {
+namespace {
+
+bool write_text_file(const std::filesystem::path& p, const std::string& text) {
+    std::ofstream out(p);
+    if (!out) return false;
+    out << text;
+    return true;
+}
+
+std::string read_text_file(const std::filesystem::path& p) {
+    std::ifstream in(p);
+    if (!in) return {};
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
+
+} // namespace
+
+const char* tab_name(EditorTab t) noexcept {
+    switch (t) {
+    case EditorTab::Project: return "Projekt";
+    case EditorTab::Map: return "Karte";
+    case EditorTab::Database: return "Datenbank";
+    case EditorTab::Events: return "Events";
+    case EditorTab::Scripts: return "Skripte";
+    case EditorTab::TestPlay: return "Testspiel";
+    case EditorTab::Export: return "Export";
+    default: return "?";
+    }
+}
+
+EditorApp::EditorApp(EditorAppConfig cfg) : cfg_(std::move(cfg)) {
+    if (!cfg_.project_path.empty()) {
+        std::snprintf(project_path_buf_, sizeof(project_path_buf_), "%s",
+                      cfg_.project_path.string().c_str());
+    }
+    std::snprintf(export_path_buf_, sizeof(export_path_buf_), "%s", "export/MyGame");
+}
+
+EditorApp::~EditorApp() {
+    shutdown();
+}
+
+int EditorApp::run() {
+    if (!boot()) {
+        return 1;
+    }
+    if (!cfg_.create_project.empty()) {
+        create_project(cfg_.create_project);
+    }
+    if (!cfg_.project_path.empty()) {
+        open_project(cfg_.project_path);
+    }
+    if (cfg_.auto_testplay && project_open_) {
+        run_testplay_smoke();
+        if (cfg_.headless) {
+            shutdown();
+            return 0;
+        }
+    }
+    main_loop();
+    shutdown();
+    return 0;
+}
+
+bool EditorApp::boot() {
+    core::EngineConfig ecfg;
+    ecfg.mode = core::AppMode::Editor;
+    ecfg.graphics.title = "AetherRPG Editor";
+    ecfg.graphics.width = 1440;
+    ecfg.graphics.height = 900;
+    ecfg.log.console = true;
+    ecfg.log.file = false;
+    ecfg.log.level = "info";
+    if (cfg_.headless || cfg_.force_null_window) {
+        // keep window null
+    }
+
+    ctx_ = core::EngineContext::create(std::move(ecfg));
+    ctx_->start();
+
+    window::WindowDesc wd = window::Window::desc_from_graphics(ctx_->config().graphics);
+    wd.title = "AetherRPG Editor";
+    std::optional<window::WindowBackend> force;
+    if (cfg_.headless || cfg_.force_null_window) {
+        force = window::WindowBackend::Null;
+    }
+    window_ = window::Window::create(wd, &ctx_->events(), force);
+    if (!window_) {
+        core::log_error("Editor", "Window create failed");
+        return false;
+    }
+
+    render::RendererDesc rd;
+    if (window_->backend() == window::WindowBackend::Glfw) {
+        rd.backend = render::RendererBackend::OpenGL;
+    } else {
+        rd.backend = render::RendererBackend::Null;
+    }
+    rd.clear_color = render::Color{0.12f, 0.13f, 0.16f, 1.0f};
+    renderer_ = render::Renderer::create(rd, window_.get());
+
+    input_ = std::make_unique<input::InputManager>(&ctx_->events());
+    input_->register_default_rpg_actions();
+    input_->attach_window(window_.get());
+
+    audio_ = audio::AudioEngine::create(
+#if defined(AETHER_WITH_MINIAUDIO)
+        cfg_.headless ? audio::AudioBackend::Null : audio::AudioBackend::MiniAudio,
+#else
+        audio::AudioBackend::Null,
+#endif
+        ctx_->config().audio);
+
+    resources_ = std::make_unique<res::ResourceManager>(&ctx_->thread_pool());
+    ruby_ = ruby::RubyVM::create();
+    ruby_->define_engine_api();
+
+    map_camera_.set_perspective(45.0f, 16.0f / 9.0f, 0.1f, 500.0f);
+    map_camera_.look_at({8, 12, 16}, {0, 0, 0}, {0, 1, 0});
+
+    imgui_ready_ = init_imgui();
+    running_ = true;
+
+    ctx_->events().subscribe<window::WindowCloseEvent>(
+        [this](const window::WindowCloseEvent&) { running_ = false; });
+
+    status_message_ = std::string("AetherEditor ") + aether::version();
+    core::log_info("Editor", status_message_);
+    return true;
+}
+
+bool EditorApp::init_imgui() {
+#if defined(AETHER_WITH_IMGUI) && defined(AETHER_WITH_GLFW) && defined(AETHER_WITH_OPENGL)
+    if (window_->backend() != window::WindowBackend::Glfw) {
+        core::log_info("Editor", "ImGui skipped (no GLFW/GL window) – using fallback UI log");
+        return false;
+    }
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsDark();
+    auto* glfw = static_cast<GLFWwindow*>(window_->native_handle());
+    ImGui_ImplGlfw_InitForOpenGL(glfw, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+    core::log_info("Editor", "ImGui initialized");
+    return true;
+#else
+    core::log_info("Editor", "ImGui not linked – headless/CLI UI mode");
+    return false;
+#endif
+}
+
+void EditorApp::shutdown_imgui() {
+#if defined(AETHER_WITH_IMGUI) && defined(AETHER_WITH_GLFW) && defined(AETHER_WITH_OPENGL)
+    if (!imgui_ready_) return;
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    imgui_ready_ = false;
+#endif
+}
+
+void EditorApp::begin_imgui_frame() {
+#if defined(AETHER_WITH_IMGUI) && defined(AETHER_WITH_GLFW) && defined(AETHER_WITH_OPENGL)
+    if (!imgui_ready_) return;
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+#endif
+}
+
+void EditorApp::end_imgui_frame() {
+#if defined(AETHER_WITH_IMGUI) && defined(AETHER_WITH_GLFW) && defined(AETHER_WITH_OPENGL)
+    if (!imgui_ready_) return;
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+#endif
+}
+
+void EditorApp::shutdown() {
+    if (!ctx_) return;
+    shutdown_imgui();
+    map_scene_.reset();
+    ruby_.reset();
+    resources_.reset();
+    audio_.reset();
+    input_.reset();
+    renderer_.reset();
+    if (window_) {
+        window_.reset();
+        window::WindowSystem::terminate();
+    }
+    ctx_->shutdown();
+    ctx_.reset();
+}
+
+void EditorApp::main_loop() {
+    while (running_) {
+        window_->poll_events();
+        if (window_->should_close()) break;
+
+        input_->begin_frame();
+        ctx_->pump_frame();
+        audio_->update(ctx_->time().delta_seconds());
+
+        // Render map preview under UI
+        if (renderer_ && map_scene_) {
+            std::vector<render::Renderable> items;
+            map_scene_->collect_renderables(items);
+            renderer_->begin_frame();
+            renderer_->draw(map_camera_, items);
+            renderer_->end_frame();
+        } else if (renderer_) {
+            renderer_->begin_frame();
+            renderer_->end_frame();
+        }
+
+        if (imgui_ready_) {
+            begin_imgui_frame();
+            draw_ui();
+            end_imgui_frame();
+        } else if (cfg_.headless) {
+            // headless: limited frames
+            if (cfg_.max_frames > 0 && static_cast<int>(frame_) + 1 >= cfg_.max_frames) {
+                running_ = false;
+            }
+        }
+
+        window_->swap_buffers();
+        input_->end_frame();
+        ++frame_;
+
+        if (cfg_.max_frames > 0 && static_cast<int>(frame_) >= cfg_.max_frames) {
+            running_ = false;
+        }
+    }
+}
+
+void EditorApp::draw_ui() {
+#if defined(AETHER_WITH_IMGUI)
+    if (!imgui_ready_) return;
+    draw_menu_bar();
+
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos);
+    ImGui::SetNextWindowSize(vp->WorkSize);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoBringToFrontOnFocus |
+                             ImGuiWindowFlags_NoNavFocus;
+
+    ImGui::Begin("AetherMain", nullptr, flags);
+    draw_tab_bar();
+    ImGui::Separator();
+
+    switch (tab_) {
+    case EditorTab::Project: draw_project_tab(); break;
+    case EditorTab::Map: draw_map_tab(); break;
+    case EditorTab::Database: draw_database_tab(); break;
+    case EditorTab::Events: draw_events_tab(); break;
+    case EditorTab::Scripts: draw_scripts_tab(); break;
+    case EditorTab::TestPlay: draw_testplay_tab(); break;
+    case EditorTab::Export: draw_export_tab(); break;
+    default: break;
+    }
+
+    ImGui::Separator();
+    draw_status_bar();
+    ImGui::End();
+#endif
+}
+
+void EditorApp::draw_menu_bar() {
+#if defined(AETHER_WITH_IMGUI)
+    if (ImGui::BeginMainMenuBar()) {
+        if (ImGui::BeginMenu("Projekt")) {
+            if (ImGui::MenuItem("Neu…")) tab_ = EditorTab::Project;
+            if (ImGui::MenuItem("Öffnen…")) tab_ = EditorTab::Project;
+            if (ImGui::MenuItem("Speichern", "Ctrl+S", false, project_open_)) save_project();
+            ImGui::Separator();
+            if (ImGui::MenuItem("Beenden")) running_ = false;
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Ansicht")) {
+            for (int i = 0; i < static_cast<int>(EditorTab::Count); ++i) {
+                auto t = static_cast<EditorTab>(i);
+                if (ImGui::MenuItem(tab_name(t), nullptr, tab_ == t)) tab_ = t;
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Spiel")) {
+            if (ImGui::MenuItem("Testspiel", "F5", false, project_open_)) {
+                tab_ = EditorTab::TestPlay;
+                run_testplay_smoke();
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+    }
+#endif
+}
+
+void EditorApp::draw_tab_bar() {
+#if defined(AETHER_WITH_IMGUI)
+    for (int i = 0; i < static_cast<int>(EditorTab::Count); ++i) {
+        auto t = static_cast<EditorTab>(i);
+        if (i > 0) ImGui::SameLine();
+        const bool selected = (tab_ == t);
+        if (selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.25f, 0.45f, 0.75f, 1));
+        }
+        if (ImGui::Button(tab_name(t))) tab_ = t;
+        if (selected) ImGui::PopStyleColor();
+    }
+#endif
+}
+
+void EditorApp::draw_project_tab() {
+#if defined(AETHER_WITH_IMGUI)
+    ImGui::TextUnformatted("Projektverwaltung");
+    ImGui::TextWrapped(
+        "Kein Unity/Unreal-Workflow: Sie arbeiten mit Projekt, Karte, Datenbank, "
+        "Events und Skripten – die Engine richtet Kollision und Navigation automatisch ein.");
+
+    ImGui::Separator();
+    ImGui::InputText("Projektordner", project_path_buf_, sizeof(project_path_buf_));
+    if (ImGui::Button("Öffnen")) {
+        open_project(project_path_buf_);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Speichern") && project_open_) {
+        save_project();
+    }
+
+    ImGui::Separator();
+    ImGui::InputText("Neues Projekt", new_project_buf_, sizeof(new_project_buf_));
+    if (ImGui::Button("Anlegen")) {
+        if (new_project_buf_[0] != '\0') create_project(new_project_buf_);
+    }
+
+    if (project_open_) {
+        ImGui::Separator();
+        ImGui::Text("Geöffnet: %s  (v%s)", project_.name.c_str(), project_.version.c_str());
+        char title[256];
+        std::snprintf(title, sizeof(title), "%s", project_.graphics.title.c_str());
+        if (ImGui::InputText("Spieltitel", title, sizeof(title))) {
+            project_.graphics.title = title;
+            project_.name = title;
+        }
+        ImGui::InputInt("Breite", &project_.graphics.width);
+        ImGui::InputInt("Höhe", &project_.graphics.height);
+        ImGui::Checkbox("Vollbild", &project_.graphics.fullscreen);
+        ImGui::Checkbox("VSync", &project_.graphics.vsync);
+        ImGui::InputInt("FPS", &project_.graphics.frame_rate);
+        ImGui::InputInt("Start-Map", &project_.start.map_id);
+        float startp[3] = {static_cast<float>(project_.start.x),
+                           static_cast<float>(project_.start.y),
+                           static_cast<float>(project_.start.z)};
+        if (ImGui::DragFloat3("Startposition", startp, 0.1f)) {
+            project_.start.x = startp[0];
+            project_.start.y = startp[1];
+            project_.start.z = startp[2];
+        }
+    }
+#endif
+}
+
+void EditorApp::draw_map_tab() {
+#if defined(AETHER_WITH_IMGUI)
+    if (!project_open_) {
+        ImGui::TextUnformatted("Bitte zuerst ein Projekt öffnen.");
+        return;
+    }
+    ensure_map_scene();
+
+    ImGui::BeginChild("palette", ImVec2(220, 0), true);
+    ImGui::TextUnformatted("Objekt-Palette");
+    ImGui::TextWrapped("Drag&Drop-Ersatz: Klick platziert mit Auto-Kollision.");
+    const char* items[] = {"Prop (Würfel)", "NPC", "Gegner", "Event", "Boden"};
+    ImGui::ListBox("##pal", &palette_index_, items, IM_ARRAYSIZE(items));
+    if (ImGui::Button("Platzieren", ImVec2(-1, 0))) {
+        place_palette_object(items[palette_index_]);
+    }
+    if (ImGui::Button("Navigation backen", ImVec2(-1, 0))) {
+        map_scene_->bake_navigation();
+        status_message_ = "Navigation gebacken";
+    }
+    if (ImGui::Button("Kollision neu", ImVec2(-1, 0))) {
+        map_scene_->rebuild_collision();
+        status_message_ = "Kollision neu aufgebaut";
+    }
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+    ImGui::BeginChild("hierarchy", ImVec2(260, 0), true);
+    ImGui::TextUnformatted("Kartenobjekte");
+    for (const auto& o : map_scene_->objects()) {
+        const bool sel = (selected_id_ == o.id);
+        if (ImGui::Selectable(o.name.c_str(), sel)) {
+            selected_id_ = o.id;
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+    ImGui::BeginChild("inspector", ImVec2(0, 0), true);
+    ImGui::TextUnformatted("Eigenschaften (nicht-technisch)");
+    if (auto* obj = map_scene_->find(selected_id_)) {
+        char name[128];
+        std::snprintf(name, sizeof(name), "%s", obj->name.c_str());
+        if (ImGui::InputText("Name", name, sizeof(name))) obj->name = name;
+        float pos[3] = {obj->transform.position.x, obj->transform.position.y,
+                        obj->transform.position.z};
+        if (ImGui::DragFloat3("Position", pos, 0.1f)) {
+            obj->transform.position = {pos[0], pos[1], pos[2]};
+            if (obj->collision_id) {
+                map_scene_->collision().set_transform(obj->collision_id, obj->transform);
+            }
+        }
+        float scl[3] = {obj->transform.scale.x, obj->transform.scale.y, obj->transform.scale.z};
+        if (ImGui::DragFloat3("Größe", scl, 0.05f, 0.05f, 50.0f)) {
+            obj->transform.scale = {scl[0], scl[1], scl[2]};
+            if (obj->collision_id) {
+                map_scene_->collision().set_transform(obj->collision_id, obj->transform);
+            }
+        }
+        ImGui::Checkbox("Sichtbar", &obj->visible);
+        ImGui::Text("Kollision: automatisch (#%u)", obj->collision_id);
+        ImGui::Text("Navigation: %s", map_scene_->has_nav() ? "bereit" : "noch nicht gebacken");
+        if (obj->map_event) {
+            ImGui::Separator();
+            ImGui::TextUnformatted("Event vorhanden – siehe Tab Events");
+            if (ImGui::Button("Events öffnen")) tab_ = EditorTab::Events;
+        }
+        if (ImGui::Button("Löschen")) {
+            map_scene_->remove_object(selected_id_);
+            selected_id_ = kInvalidEntity;
+        }
+    } else {
+        ImGui::TextUnformatted("Kein Objekt gewählt.");
+    }
+    ImGui::Separator();
+    ImGui::Text("Kamera");
+    // simple orbit height
+    static float cam_dist = 18.0f;
+    static float cam_height = 12.0f;
+    ImGui::SliderFloat("Abstand", &cam_dist, 5.0f, 60.0f);
+    ImGui::SliderFloat("Höhe", &cam_height, 2.0f, 40.0f);
+    map_camera_.look_at({cam_dist * 0.6f, cam_height, cam_dist}, {0, 0, 0}, {0, 1, 0});
+    if (renderer_) {
+        ImGui::Text("Renderer: %s | drawn %u / culled %u",
+                    renderer_->backend() == render::RendererBackend::OpenGL ? "OpenGL" : "Null",
+                    renderer_->stats().drawn, renderer_->stats().culled);
+    }
+    ImGui::EndChild();
+#endif
+}
+
+void EditorApp::draw_database_tab() {
+#if defined(AETHER_WITH_IMGUI)
+    if (!project_open_) {
+        ImGui::TextUnformatted("Bitte zuerst ein Projekt öffnen.");
+        return;
+    }
+    const char* subs[] = {"Helden", "Gegner", "Items", "Skills", "System"};
+    for (int i = 0; i < 5; ++i) {
+        if (i) ImGui::SameLine();
+        if (ImGui::RadioButton(subs[i], db_subtab_ == i)) {
+            db_subtab_ = i;
+            db_selected_ = 0;
+        }
+    }
+    ImGui::Separator();
+
+    auto list_and_edit = [&](auto& vec, auto&& edit_fn) {
+        ImGui::BeginChild("dblist", ImVec2(200, 0), true);
+        for (int i = 0; i < static_cast<int>(vec.size()); ++i) {
+            if (ImGui::Selectable(vec[static_cast<usize>(i)].name.c_str(), db_selected_ == i))
+                db_selected_ = i;
+        }
+        if (ImGui::Button("+ Neu")) {
+            vec.push_back({});
+            vec.back().id = static_cast<aether::u32>(vec.size());
+            vec.back().name = "Neu";
+            db_selected_ = static_cast<int>(vec.size()) - 1;
+        }
+        ImGui::EndChild();
+        ImGui::SameLine();
+        ImGui::BeginChild("dbedit", ImVec2(0, 0), true);
+        if (db_selected_ >= 0 && db_selected_ < static_cast<int>(vec.size())) {
+            edit_fn(vec[static_cast<usize>(db_selected_)]);
+        }
+        ImGui::EndChild();
+    };
+
+    if (db_subtab_ == 0) {
+        list_and_edit(database_.actors, [](game::ActorData& a) {
+            char n[128];
+            std::snprintf(n, sizeof(n), "%s", a.name.c_str());
+            if (ImGui::InputText("Name", n, sizeof(n))) a.name = n;
+            ImGui::InputInt("Max HP", &a.max_hp);
+            ImGui::InputInt("Max MP", &a.max_mp);
+            ImGui::InputInt("Angriff", &a.attack);
+            ImGui::InputInt("Verteidigung", &a.defense);
+            ImGui::InputInt("Agilität", &a.speed);
+        });
+    } else if (db_subtab_ == 1) {
+        list_and_edit(database_.enemies, [](game::EnemyData& e) {
+            char n[128];
+            std::snprintf(n, sizeof(n), "%s", e.name.c_str());
+            if (ImGui::InputText("Name", n, sizeof(n))) e.name = n;
+            ImGui::InputInt("Max HP", &e.max_hp);
+            ImGui::InputInt("Angriff", &e.attack);
+            ImGui::InputInt("Verteidigung", &e.defense);
+            ImGui::InputInt("EXP", &e.exp);
+            ImGui::InputInt("Gold", &e.gold);
+        });
+    } else if (db_subtab_ == 2) {
+        list_and_edit(database_.items, [](game::ItemData& it) {
+            char n[128];
+            std::snprintf(n, sizeof(n), "%s", it.name.c_str());
+            if (ImGui::InputText("Name", n, sizeof(n))) it.name = n;
+            ImGui::InputInt("Preis", &it.price);
+            ImGui::Checkbox("Verbrauchbar", &it.consumable);
+            ImGui::InputInt("HP heilen", &it.hp_recover);
+            ImGui::InputInt("MP heilen", &it.mp_recover);
+        });
+    } else if (db_subtab_ == 3) {
+        list_and_edit(database_.skills, [](game::SkillData& s) {
+            char n[128];
+            std::snprintf(n, sizeof(n), "%s", s.name.c_str());
+            if (ImGui::InputText("Name", n, sizeof(n))) s.name = n;
+            ImGui::InputInt("MP-Kosten", &s.mp_cost);
+            ImGui::InputInt("Stärke", &s.power);
+        });
+    } else {
+        char t[256];
+        std::snprintf(t, sizeof(t), "%s", database_.system.game_title.c_str());
+        if (ImGui::InputText("Spieltitel", t, sizeof(t))) database_.system.game_title = t;
+        int mid = static_cast<int>(database_.system.start_map_id);
+        if (ImGui::InputInt("Start-Map-ID", &mid))
+            database_.system.start_map_id = static_cast<aether::u32>(mid);
+    }
+
+    if (ImGui::Button("Datenbank speichern")) {
+        auto r = database_.save_to_directory(project_.root_dir / project_.data_path);
+        status_message_ = r ? "Datenbank gespeichert" : r.error().what();
+    }
+#endif
+}
+
+void EditorApp::draw_events_tab() {
+#if defined(AETHER_WITH_IMGUI)
+    if (!project_open_) {
+        ImGui::TextUnformatted("Bitte zuerst ein Projekt öffnen.");
+        return;
+    }
+    ensure_map_scene();
+    ImGui::TextWrapped(
+        "Visueller Event-Editor – Befehle ohne Programmierung. Ruby nur optional über „Skript“.");
+
+    // list event objects
+    std::vector<int> event_indices;
+    for (int i = 0; i < static_cast<int>(map_scene_->objects().size()); ++i) {
+        if (map_scene_->objects()[static_cast<usize>(i)].map_event)
+            event_indices.push_back(i);
+    }
+    ImGui::BeginChild("evlist", ImVec2(220, 0), true);
+    for (int idx : event_indices) {
+        const auto& o = map_scene_->objects()[static_cast<usize>(idx)];
+        if (ImGui::Selectable(o.name.c_str(), event_obj_index_ == idx)) {
+            event_obj_index_ = idx;
+            event_page_index_ = 0;
+            event_cmd_index_ = -1;
+        }
+    }
+    if (ImGui::Button("Neues Event")) {
+        place_palette_object("Event");
+    }
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+    ImGui::BeginChild("evcmds", ImVec2(0, 0), true);
+    if (event_obj_index_ >= 0 &&
+        event_obj_index_ < static_cast<int>(map_scene_->objects().size())) {
+        auto* obj = map_scene_->find(map_scene_->objects()[static_cast<usize>(event_obj_index_)].id);
+        if (obj && obj->map_event) {
+            auto& ev = *obj->map_event;
+            if (ev.pages.empty()) {
+                ev.pages.push_back({});
+            }
+            event_page_index_ =
+                std::clamp(event_page_index_, 0, static_cast<int>(ev.pages.size()) - 1);
+            auto& page = ev.pages[static_cast<usize>(event_page_index_)];
+
+            ImGui::Text("Event: %s", ev.name.c_str());
+            ImGui::Text("Auslöser:");
+            const char* triggers[] = {"Aktionstaste", "Spieler-Touch", "Event-Touch",
+                                      "Autorun", "Parallel"};
+            int tr = static_cast<int>(page.trigger);
+            if (ImGui::Combo("##trig", &tr, triggers, IM_ARRAYSIZE(triggers))) {
+                page.trigger = static_cast<game::EventTrigger>(tr);
+            }
+
+            ImGui::Separator();
+            ImGui::TextUnformatted("Befehle");
+            for (int ci = 0; ci < static_cast<int>(page.commands.size()); ++ci) {
+                auto& cmd = page.commands[static_cast<usize>(ci)];
+                const bool sel = event_cmd_index_ == ci;
+                std::string label = std::string(game::to_string(cmd.type));
+                if (cmd.type == game::EventCommandType::Message) {
+                    label += ": \"" + cmd.params.value("text", "") + "\"";
+                }
+                if (ImGui::Selectable(label.c_str(), sel)) event_cmd_index_ = ci;
+            }
+
+            if (ImGui::Button("Nachricht")) {
+                page.commands.push_back(
+                    {game::EventCommandType::Message, {{"text", "Hallo!"}}, {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Schalter")) {
+                page.commands.push_back(
+                    {game::EventCommandType::SetSwitch, {{"id", 1}, {"value", true}}, {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Variable")) {
+                page.commands.push_back(
+                    {game::EventCommandType::SetVariable, {{"id", 1}, {"value", 1}}, {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Teleport")) {
+                page.commands.push_back({game::EventCommandType::TransferPlayer,
+                                         {{"map_id", 1}, {"x", 0}, {"y", 0}, {"z", 0}},
+                                         {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Skript")) {
+                page.commands.push_back(
+                    {game::EventCommandType::Script, {{"code", "Audio.se_play(\"Open1\")"}}, {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Warten")) {
+                page.commands.push_back(
+                    {game::EventCommandType::Wait, {{"frames", 30}}, {}});
+            }
+
+            if (event_cmd_index_ >= 0 &&
+                event_cmd_index_ < static_cast<int>(page.commands.size())) {
+                auto& cmd = page.commands[static_cast<usize>(event_cmd_index_)];
+                ImGui::Separator();
+                ImGui::Text("Bearbeiten: %s", game::to_string(cmd.type));
+                if (cmd.type == game::EventCommandType::Message) {
+                    char buf[512];
+                    std::snprintf(buf, sizeof(buf), "%s",
+                                  cmd.params.value("text", "").c_str());
+                    if (ImGui::InputTextMultiline("Text", buf, sizeof(buf))) {
+                        cmd.params["text"] = buf;
+                    }
+                } else if (cmd.type == game::EventCommandType::SetSwitch) {
+                    int id = cmd.params.value("id", 1);
+                    bool v = cmd.params.value("value", true);
+                    if (ImGui::InputInt("Schalter-Nr.", &id)) cmd.params["id"] = id;
+                    if (ImGui::Checkbox("Ein", &v)) cmd.params["value"] = v;
+                } else if (cmd.type == game::EventCommandType::SetVariable) {
+                    int id = cmd.params.value("id", 1);
+                    int v = cmd.params.value("value", 0);
+                    if (ImGui::InputInt("Variable-Nr.", &id)) cmd.params["id"] = id;
+                    if (ImGui::InputInt("Wert", &v)) cmd.params["value"] = v;
+                } else if (cmd.type == game::EventCommandType::Script) {
+                    char buf[1024];
+                    std::snprintf(buf, sizeof(buf), "%s",
+                                  cmd.params.value("code", "").c_str());
+                    if (ImGui::InputTextMultiline("Ruby", buf, sizeof(buf))) {
+                        cmd.params["code"] = buf;
+                    }
+                } else if (cmd.type == game::EventCommandType::Wait) {
+                    int f = cmd.params.value("frames", 30);
+                    if (ImGui::InputInt("Frames", &f)) cmd.params["frames"] = f;
+                } else if (cmd.type == game::EventCommandType::TransferPlayer) {
+                    int mid = cmd.params.value("map_id", 1);
+                    float p[3] = {cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                                  cmd.params.value("z", 0.0f)};
+                    if (ImGui::InputInt("Map", &mid)) cmd.params["map_id"] = mid;
+                    if (ImGui::DragFloat3("Ziel", p, 0.1f)) {
+                        cmd.params["x"] = p[0];
+                        cmd.params["y"] = p[1];
+                        cmd.params["z"] = p[2];
+                    }
+                }
+                if (ImGui::Button("Befehl löschen")) {
+                    page.commands.erase(page.commands.begin() + event_cmd_index_);
+                    event_cmd_index_ = -1;
+                }
+            }
+
+            if (ImGui::Button("Event testen (Interpreter)")) {
+                game::GameState st;
+                game::EventInterpreter interp(&st);
+                std::string log;
+                interp.set_script_handler([&](const std::string& code) {
+                    auto r = ruby_->eval(code);
+                    log += r.ok ? ("OK " + r.value) : r.error;
+                    log += "\n";
+                });
+                interp.start(page.commands);
+                while (interp.update()) {
+                }
+                for (const auto& m : interp.messages()) log += "MSG: " + m + "\n";
+                script_output_ = log.empty() ? "(keine Ausgabe)" : log;
+                status_message_ = "Event ausgeführt";
+            }
+            if (!script_output_.empty()) {
+                ImGui::TextWrapped("%s", script_output_.c_str());
+            }
+        }
+    } else {
+        ImGui::TextUnformatted("Kein Event gewählt. Legen Sie eines über die Palette an.");
+    }
+    ImGui::EndChild();
+#endif
+}
+
+void EditorApp::draw_scripts_tab() {
+#if defined(AETHER_WITH_IMGUI)
+    if (!project_open_) {
+        ImGui::TextUnformatted("Bitte zuerst ein Projekt öffnen.");
+        return;
+    }
+    if (script_buffer_.empty()) load_script_buffer();
+
+    ImGui::Text("Skript: %s", script_path_.c_str());
+    ImGui::TextWrapped(
+        "Ruby nur für Spiellogik. API: Graphics, Audio, Input, SceneManager, Player, "
+        "NPC, Enemy, Camera, Weather, Inventory, Quest, Dialogue, Map");
+
+    if (ImGui::Button("Laden")) load_script_buffer();
+    ImGui::SameLine();
+    if (ImGui::Button("Speichern")) save_script_buffer();
+    ImGui::SameLine();
+    if (ImGui::Button("Ausführen / Hot-Reload")) reload_scripts();
+
+    ImGui::InputTextMultiline("##code", script_buffer_.data(), script_buffer_.size(),
+                              ImVec2(-1, -120), ImGuiInputTextFlags_AllowTabInput);
+    ImGui::Separator();
+    ImGui::TextUnformatted("Ausgabe");
+    ImGui::BeginChild("sout", ImVec2(0, 0), true);
+    ImGui::TextUnformatted(script_output_.c_str());
+    ImGui::EndChild();
+#endif
+}
+
+void EditorApp::draw_testplay_tab() {
+#if defined(AETHER_WITH_IMGUI)
+    ImGui::TextUnformatted("Testspiel");
+    ImGui::TextWrapped(
+        "Startet die Runtime-Logik im Debug-Kontext (Scripts, Audio-API, kurze Simulation).");
+    if (!project_open_) {
+        ImGui::TextUnformatted("Kein Projekt geöffnet.");
+        return;
+    }
+    if (ImGui::Button("Testspiel starten", ImVec2(200, 40))) {
+        run_testplay_smoke();
+    }
+    ImGui::TextWrapped("%s", script_output_.c_str());
+#endif
+}
+
+void EditorApp::draw_export_tab() {
+#if defined(AETHER_WITH_IMGUI)
+    ImGui::TextUnformatted("Export");
+    ImGui::TextWrapped("Erzeugt ein spielbares Paket mit Game-Runtime und Projektinhalten.");
+    ImGui::InputText("Zielordner", export_path_buf_, sizeof(export_path_buf_));
+    if (ImGui::Button("Exportieren") && project_open_) {
+        do_export();
+    }
+#endif
+}
+
+void EditorApp::draw_status_bar() {
+#if defined(AETHER_WITH_IMGUI)
+    ImGui::Text("%s | Frame %llu | %s", status_message_.c_str(),
+                static_cast<unsigned long long>(frame_),
+                project_open_ ? project_.name.c_str() : "kein Projekt");
+#endif
+}
+
+void EditorApp::open_project(const std::filesystem::path& path) {
+    std::string err;
+    shared::ProjectDescriptor desc;
+    if (!shared::load_project_descriptor(path, desc, &err)) {
+        status_message_ = "Öffnen fehlgeschlagen: " + err;
+        core::log_error("Editor", status_message_);
+        return;
+    }
+    project_ = std::move(desc);
+    project_open_ = true;
+    std::snprintf(project_path_buf_, sizeof(project_path_buf_), "%s",
+                  project_.root_dir.string().c_str());
+
+    resources_->mount("data", project_.root_dir / project_.data_path);
+    resources_->mount("maps", project_.root_dir / project_.maps_path);
+    resources_->mount("graphics", project_.root_dir / project_.graphics_path);
+    resources_->mount("audio", project_.root_dir / project_.audio_path);
+    resources_->mount("scripts", project_.root_dir / "scripts");
+
+    auto db = game::Database::load_from_directory(project_.root_dir / project_.data_path);
+    database_ = db ? std::move(db.value()) : game::Database::make_default();
+
+    map_scene_.reset();
+    ensure_map_scene();
+    load_script_buffer();
+    status_message_ = "Projekt geöffnet: " + project_.name;
+}
+
+void EditorApp::create_project(const std::filesystem::path& path) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::create_directories(path, ec);
+    const fs::path tmpl = fs::path("templates") / "empty_project";
+    if (fs::exists(tmpl)) {
+        fs::copy(tmpl, path, fs::copy_options::recursive | fs::copy_options::skip_existing, ec);
+    } else {
+        fs::create_directories(path / "data", ec);
+        fs::create_directories(path / "maps", ec);
+        fs::create_directories(path / "graphics", ec);
+        fs::create_directories(path / "audio/bgm", ec);
+        fs::create_directories(path / "scripts", ec);
+        shared::ProjectDescriptor d;
+        d.name = path.filename().string();
+        d.graphics.title = d.name;
+        shared::save_project_descriptor(path / "project.json", d, nullptr);
+        write_text_file(path / "scripts" / "main.rb",
+                        "# frozen_string_literal: true\nmodule Main\n  module_function\n  def boot; end\nend\nMain.boot\n");
+    }
+    auto db = game::Database::make_default();
+    db.system.game_title = path.filename().string();
+    db.save_to_directory(path / "data");
+    open_project(path);
+    status_message_ = "Projekt angelegt: " + path.string();
+}
+
+void EditorApp::save_project() {
+    if (!project_open_) return;
+    std::string err;
+    if (!shared::save_project_descriptor(project_.root_dir / "project.json", project_, &err)) {
+        status_message_ = err;
+        return;
+    }
+    database_.save_to_directory(project_.root_dir / project_.data_path);
+    if (map_scene_) {
+        write_text_file(project_.root_dir / project_.maps_path / "map001.json",
+                        map_scene_->to_json().dump(2));
+    }
+    save_script_buffer();
+    status_message_ = "Gespeichert";
+}
+
+void EditorApp::ensure_map_scene() {
+    if (map_scene_) return;
+    namespace fs = std::filesystem;
+    const auto map_path = project_.root_dir / project_.maps_path / "map001.json";
+    if (fs::exists(map_path)) {
+        try {
+            auto txt = read_text_file(map_path);
+            auto j = nlohmann::json::parse(txt);
+            map_scene_ = scene::Scene::create_from_json(j);
+            for (auto& o : map_scene_->objects()) {
+                if (!o.mesh) {
+                    o.mesh = (o.type == scene::ObjectType::Prop &&
+                              o.name.find("Boden") != std::string::npos)
+                                 ? render::Mesh::create_plane(40.0f)
+                                 : render::Mesh::create_cube(1.0f);
+                    if (renderer_) renderer_->upload_mesh(*o.mesh);
+                }
+            }
+            map_scene_->rebuild_collision();
+            return;
+        } catch (...) {
+        }
+    }
+    map_scene_ = std::make_unique<scene::Scene>("Map 001");
+    // default ground
+    render::Transform t;
+    t.position = {0, 0, 0};
+    auto ground = render::Mesh::create_plane(40.0f);
+    if (renderer_) renderer_->upload_mesh(*ground);
+    auto id = map_scene_->place(scene::ObjectType::Prop, "Boden", ground, t);
+    if (auto* o = map_scene_->find(id)) {
+        o->material.albedo = render::Color{0.35f, 0.55f, 0.30f, 1};
+    }
+}
+
+void EditorApp::place_palette_object(const char* kind) {
+    ensure_map_scene();
+    render::Transform t;
+    t.position = {static_cast<float>((map_scene_->objects().size() % 5) * 2), 0.5f,
+                  static_cast<float>((map_scene_->objects().size() / 5) * 2)};
+
+    scene::ObjectType type = scene::ObjectType::Prop;
+    std::string name = kind;
+    std::shared_ptr<render::Mesh> mesh = render::Mesh::create_cube(1.0f);
+
+    if (std::strstr(kind, "NPC")) {
+        type = scene::ObjectType::Npc;
+        name = "NPC_" + std::to_string(map_scene_->objects().size());
+        t.scale = {0.6f, 1.2f, 0.6f};
+    } else if (std::strstr(kind, "Gegner") || std::strstr(kind, "Enemy")) {
+        type = scene::ObjectType::Enemy;
+        name = "Enemy_" + std::to_string(map_scene_->objects().size());
+        t.scale = {0.8f, 0.8f, 0.8f};
+    } else if (std::strstr(kind, "Event")) {
+        type = scene::ObjectType::Event;
+        name = "EV" + std::to_string(map_scene_->objects().size());
+        t.scale = {0.5f, 0.5f, 0.5f};
+    } else if (std::strstr(kind, "Boden")) {
+        type = scene::ObjectType::Prop;
+        name = "Boden";
+        mesh = render::Mesh::create_plane(40.0f);
+        t.position = {0, 0, 0};
+        t.scale = {1, 1, 1};
+    }
+
+    if (renderer_) renderer_->upload_mesh(*mesh);
+    selected_id_ = map_scene_->place(type, name, mesh, t);
+    if (auto* o = map_scene_->find(selected_id_)) {
+        if (type == scene::ObjectType::Npc)
+            o->material.albedo = render::Color{0.3f, 0.6f, 1.0f, 1};
+        if (type == scene::ObjectType::Enemy)
+            o->material.albedo = render::Color{1.0f, 0.35f, 0.3f, 1};
+        if (type == scene::ObjectType::Event)
+            o->material.albedo = render::Color{1.0f, 0.9f, 0.2f, 1};
+    }
+    status_message_ = "Platziert: " + name + " (Kollision auto)";
+}
+
+void EditorApp::run_testplay_smoke() {
+    if (!project_open_) return;
+    std::ostringstream log;
+    log << "=== Testspiel ===\n";
+    ruby_->define_engine_api();
+    audio::AudioEngine* ap = audio_.get();
+    ruby_->define_function(
+        {"Audio", "bgm_play", -1, [ap](const std::vector<std::string>& args) {
+             if (!args.empty()) {
+                 audio::PlayParams p;
+                 if (args.size() > 1) p.volume = std::stoi(args[1]);
+                 ap->bgm_play(args[0], p);
+             }
+             return std::string("nil");
+         }});
+
+    const auto entry = project_.root_dir / project_.scripts.entry;
+    auto r = ruby_->load_file(entry.string());
+    log << (r.ok ? "Scripts OK\n" : ("Script error: " + r.error + "\n"));
+
+    // short sim
+    for (int i = 0; i < 5; ++i) {
+        ctx_->pump_frame();
+        audio_->update(1.0 / 60.0);
+    }
+    log << "5 Frames simuliert\n";
+    if (map_scene_) {
+        map_scene_->bake_navigation();
+        log << "Nav-Grid: " << map_scene_->nav_grid().width << "x"
+            << map_scene_->nav_grid().height << "\n";
+        auto path = nav::find_path(map_scene_->nav_grid(), {0, 0, 0}, {5, 0, 5});
+        log << "Pfad-Punkte: " << path.size() << "\n";
+    }
+    script_output_ = log.str();
+    status_message_ = "Testspiel beendet";
+}
+
+void EditorApp::do_export() {
+    ExportOptions opt;
+    opt.project_dir = project_.root_dir;
+    opt.output_dir = export_path_buf_;
+    // try locate Game binary next to editor
+    namespace fs = std::filesystem;
+    const fs::path cand1 = fs::current_path() / "Game";
+    const fs::path cand2 = fs::current_path() / "Game.exe";
+    opt.game_binary = fs::exists(cand1) ? cand1 : cand2;
+    auto res = export_project(opt);
+    status_message_ = res.message;
+    script_output_ = res.ok ? ("Export -> " + res.package_dir.string()) : res.message;
+}
+
+void EditorApp::load_script_buffer() {
+    if (!project_open_) return;
+    script_path_ = (project_.root_dir / project_.scripts.entry).string();
+    auto txt = read_text_file(script_path_);
+    if (txt.empty()) txt = "# main.rb\n";
+    script_buffer_.assign(txt.begin(), txt.end());
+    script_buffer_.resize(std::max<size_t>(script_buffer_.size() + 1, 64 * 1024), '\0');
+}
+
+void EditorApp::save_script_buffer() {
+    if (!project_open_ || script_buffer_.empty()) return;
+    write_text_file(script_path_, std::string(script_buffer_.data()));
+    status_message_ = "Skript gespeichert";
+}
+
+void EditorApp::reload_scripts() {
+    save_script_buffer();
+    auto r = ruby_->reload_file(script_path_);
+    script_output_ = r.ok ? ("Hot-Reload OK: " + r.value) : r.error;
+    status_message_ = r.ok ? "Hot-Reload OK" : "Hot-Reload Fehler";
+}
+
+} // namespace aether::editor

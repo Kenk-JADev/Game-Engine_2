@@ -5,9 +5,15 @@
 #include <aether/core/logger.hpp>
 
 #include <algorithm>
+#include <cctype>
+#include <cstdio>
 #include <fstream>
 #include <iterator>
 #include <sstream>
+
+#if defined(AETHER_WITH_STB)
+#  include <stb_image.h>
+#endif
 
 namespace aether::res {
 namespace {
@@ -220,8 +226,26 @@ Result<std::shared_ptr<ByteBlob>> ResourceManager::read_bytes_file(const fs::pat
 }
 
 Result<std::shared_ptr<TextureData>> ResourceManager::read_texture_stub(const fs::path& path) {
-    // Phase 1: kein stb – erzeuge Platzhalter-Textur und merke Pfad in name
-    // Wenn Datei existiert, speichern wir Metadaten; Pixel = 2x2 checker
+#if defined(AETHER_WITH_STB)
+    int w = 0, h = 0, ch = 0;
+    stbi_uc* pixels = stbi_load(path.string().c_str(), &w, &h, &ch, 4);
+    if (pixels) {
+        auto tex = std::make_shared<TextureData>();
+        tex->name = path.filename().string();
+        tex->width = w;
+        tex->height = h;
+        tex->channels = 4;
+        const usize nbytes = static_cast<usize>(w) * static_cast<usize>(h) * 4u;
+        tex->pixels.assign(pixels, pixels + nbytes);
+        stbi_image_free(pixels);
+        core::log_debug("Res", "Texture loaded " + path.string() + " " +
+                                   std::to_string(w) + "x" + std::to_string(h));
+        return Result<std::shared_ptr<TextureData>>::ok(std::move(tex));
+    }
+    core::log_warn("Res", std::string("stb_image failed for ") + path.string() +
+                              ": " + (stbi_failure_reason() ? stbi_failure_reason() : "?"));
+#endif
+    // Fallback-Checker
     auto tex = std::make_shared<TextureData>();
     tex->name = path.string();
     tex->width = 2;
@@ -231,17 +255,105 @@ Result<std::shared_ptr<TextureData>> ResourceManager::read_texture_stub(const fs
         255, 0, 255, 255,  0, 0, 0, 255,
         0, 0, 0, 255,      255, 0, 255, 255,
     };
-    core::log_debug("Res", "Texture stub for " + path.string() +
-                               " (stb_image integration pending)");
     return Result<std::shared_ptr<TextureData>>::ok(std::move(tex));
 }
 
 Result<std::shared_ptr<render::Mesh>> ResourceManager::read_mesh_stub(const fs::path& path) {
-    // Phase 1: ohne assimp – Cube-Fallback, Name = Datei
+    const auto ext = path.extension().string();
+    std::string e = ext;
+    std::transform(e.begin(), e.end(), e.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    if (e == ".obj") {
+        std::ifstream in(path);
+        if (in) {
+            std::vector<render::Vec3> positions;
+            std::vector<render::Vec3> normals;
+            std::vector<render::Vec2> uvs;
+            render::MeshLod lod;
+            lod.max_distance = 1.0e9f;
+
+            std::string line;
+            while (std::getline(in, line)) {
+                if (line.starts_with("v ")) {
+                    std::istringstream ss(line.substr(2));
+                    render::Vec3 p;
+                    ss >> p.x >> p.y >> p.z;
+                    positions.push_back(p);
+                } else if (line.starts_with("vn ")) {
+                    std::istringstream ss(line.substr(3));
+                    render::Vec3 n;
+                    ss >> n.x >> n.y >> n.z;
+                    normals.push_back(n);
+                } else if (line.starts_with("vt ")) {
+                    std::istringstream ss(line.substr(3));
+                    render::Vec2 t;
+                    ss >> t.x >> t.y;
+                    uvs.push_back(t);
+                } else if (line.starts_with("f ")) {
+                    // triangulate fan: v, v/t, v//n, v/t/n
+                    std::istringstream ss(line.substr(2));
+                    std::string tok;
+                    std::vector<u32> face_indices;
+                    while (ss >> tok) {
+                        int vi = 0, ti = 0, ni = 0;
+                        if (std::sscanf(tok.c_str(), "%d/%d/%d", &vi, &ti, &ni) == 3 ||
+                            std::sscanf(tok.c_str(), "%d//%d", &vi, &ni) == 2 ||
+                            std::sscanf(tok.c_str(), "%d/%d", &vi, &ti) == 2 ||
+                            std::sscanf(tok.c_str(), "%d", &vi) == 1) {
+                            render::Vertex v;
+                            if (vi < 0) vi = static_cast<int>(positions.size()) + vi + 1;
+                            if (vi >= 1 && vi <= static_cast<int>(positions.size())) {
+                                v.position = positions[static_cast<usize>(vi - 1)];
+                            }
+                            if (ti < 0) ti = static_cast<int>(uvs.size()) + ti + 1;
+                            if (ti >= 1 && ti <= static_cast<int>(uvs.size())) {
+                                v.uv = uvs[static_cast<usize>(ti - 1)];
+                            }
+                            if (ni < 0) ni = static_cast<int>(normals.size()) + ni + 1;
+                            if (ni >= 1 && ni <= static_cast<int>(normals.size())) {
+                                v.normal = normals[static_cast<usize>(ni - 1)];
+                            } else {
+                                v.normal = render::Vec3(0, 1, 0);
+                            }
+                            v.color = render::Vec4(1.0f);
+                            const u32 idx = static_cast<u32>(lod.vertices.size());
+                            lod.vertices.push_back(v);
+                            face_indices.push_back(idx);
+                        }
+                    }
+                    for (usize i = 1; i + 1 < face_indices.size(); ++i) {
+                        lod.indices.push_back(face_indices[0]);
+                        lod.indices.push_back(face_indices[i]);
+                        lod.indices.push_back(face_indices[i + 1]);
+                    }
+                }
+            }
+            if (!lod.vertices.empty() && !lod.indices.empty()) {
+                // flat normals if missing
+                if (normals.empty()) {
+                    for (usize i = 0; i + 2 < lod.indices.size(); i += 3) {
+                        auto& v0 = lod.vertices[lod.indices[i]];
+                        auto& v1 = lod.vertices[lod.indices[i + 1]];
+                        auto& v2 = lod.vertices[lod.indices[i + 2]];
+                        const render::Vec3 n =
+                            glm::normalize(glm::cross(v1.position - v0.position,
+                                                      v2.position - v0.position));
+                        v0.normal = v1.normal = v2.normal = n;
+                    }
+                }
+                auto mesh = std::make_shared<render::Mesh>(path.filename().string());
+                mesh->set_lod(0, std::move(lod));
+                core::log_info("Res", "OBJ loaded " + path.string());
+                return Result<std::shared_ptr<render::Mesh>>::ok(std::move(mesh));
+            }
+        }
+    }
+
+    // Fallback cube for unknown / glTF / FBX until assimp is wired
     auto mesh = render::Mesh::create_cube(1.0f);
     mesh->set_name(path.filename().string());
-    core::log_debug("Res", "Mesh stub (cube) for " + path.string() +
-                               " (assimp integration pending)");
+    core::log_debug("Res", "Mesh fallback (cube) for " + path.string());
     return Result<std::shared_ptr<render::Mesh>>::ok(std::move(mesh));
 }
 

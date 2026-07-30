@@ -36,6 +36,9 @@
 #include <aether/game/event_system.hpp>
 #include <aether/game/database.hpp>
 #include <aether/plugin/plugin_loader.hpp>
+#include <aether/phys/collision.hpp>
+#include <aether/nav/pathfinding.hpp>
+#include <aether/scene/scene.hpp>
 
 namespace aether {
 

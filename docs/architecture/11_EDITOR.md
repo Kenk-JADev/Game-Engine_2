@@ -1,36 +1,33 @@
-# Modul 11 – Editor (Grundgerüst)
+# Modul 11 – Editor
 
 **Target:** `AetherEditor`  
-**Status:** CLI-Grundgerüst (GUI folgt)
-
----
+**Status:** ImGui-GUI (mit GL) + Headless-CLI
 
 ## Bedienkonzept (verbindlich)
 
-**Nur** diese Bereiche – **keine** Unity/Unreal-Component-UI:
+| Tab | Inhalt |
+|-----|--------|
+| **Projekt** | Neu / Öffnen / Speichern, Titel, Auflösung, Start |
+| **Karte** | Palette, Objektliste, Eigenschaften, Auto-Kollision/Nav |
+| **Datenbank** | Helden, Gegner, Items, Skills, System |
+| **Events** | Befehlsliste (Nachricht, Schalter, Variable, Teleport, Skript, Warten) |
+| **Skripte** | Ruby-Buffer, Speichern, Hot-Reload |
+| **Testspiel** | Script-Boot + kurze Simulation + Nav-Smoke |
+| **Export** | Paket mit Game-Binary |
 
-| Bereich | Inhalt |
-|---------|--------|
-| Projekt | Neu / Öffnen / Speichern / Spieleinstellungen |
-| Karte | 3D-Ansicht, Drag&Drop-Objekte, Events platzieren |
-| Datenbank | Helden, Gegner, Items, Skills, … |
-| Events | Visueller Event-Editor |
-| Skripte | Ruby-IDE (Highlight, Complete, Debugger) |
-| Testspiel | Runtime im Debug-Modus |
-| Export | Game-Paket erzeugen |
+**Nicht vorhanden (absichtlich):** Component-Liste, Add Component, Collider-/Rigidbody-Inspector.
 
-Objekte per Drag&Drop – Kollision/Navigation **automatisch**.
-
----
-
-## Phase-1 CLI
+## Start
 
 ```bash
-AetherEditor --new /path/MyGame
-AetherEditor --project /path/MyGame --testplay
-AetherEditor --help
+# Mit Display + OpenGL-Dev-Paketen
+AetherEditor --gui --project MyGame
+
+# CI / ohne Display
+AetherEditor --headless --new /tmp/G --testplay --max-frames 3
 ```
 
----
+## Technik
 
-*GUI-Widgets und Map-Editor folgen in späteren Iterationen.*
+- Dear ImGui + GLFW/OpenGL3-Backends wenn `AETHER_WITH_GLFW` + `AETHER_WITH_OPENGL`
+- Sonst lauffähige Headless-Pipeline (NullWindow/NullRenderer)

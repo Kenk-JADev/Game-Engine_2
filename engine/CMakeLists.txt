@@ -2,8 +2,10 @@
 # aether_engine – Kernbibliothek
 # =============================================================================
 
-option(AETHER_WITH_GLFW    "Enable GLFW window backend" ON)
-option(AETHER_WITH_OPENGL  "Enable OpenGL renderer backend (requires GLFW)" OFF)
+option(AETHER_WITH_GLFW      "Enable GLFW window backend" ON)
+option(AETHER_WITH_OPENGL    "Enable OpenGL renderer (needs GLFW+GLAD)" ON)
+option(AETHER_WITH_MINIAUDIO "Enable miniaudio backend" ON)
+option(AETHER_WITH_STB       "Enable stb_image textures" ON)
 
 set(AETHER_ENGINE_SOURCES
     # Core
@@ -38,45 +40,10 @@ set(AETHER_ENGINE_SOURCES
     src/game/database.cpp
     # Plugins
     src/plugin/plugin_loader.cpp
-)
-
-set(AETHER_ENGINE_HEADERS
-    include/aether/aether.hpp
-    include/aether/core/core.hpp
-    include/aether/core/types.hpp
-    include/aether/core/assert.hpp
-    include/aether/core/logger_fwd.hpp
-    include/aether/core/logger.hpp
-    include/aether/core/time.hpp
-    include/aether/core/config.hpp
-    include/aether/core/thread_pool.hpp
-    include/aether/core/event_bus.hpp
-    include/aether/core/engine_context.hpp
-    include/aether/window/window.hpp
-    include/aether/window/window_events.hpp
-    include/aether/window/window_module.hpp
-    include/aether/render/math.hpp
-    include/aether/render/color.hpp
-    include/aether/render/camera.hpp
-    include/aether/render/mesh.hpp
-    include/aether/render/material.hpp
-    include/aether/render/shader.hpp
-    include/aether/render/renderable.hpp
-    include/aether/render/renderer.hpp
-    include/aether/render/render_module.hpp
-    include/aether/input/keys.hpp
-    include/aether/input/input_events.hpp
-    include/aether/input/input_manager.hpp
-    include/aether/input/input_module.hpp
-    include/aether/audio/audio_engine.hpp
-    include/aether/audio/audio_module.hpp
-    include/aether/res/resource_manager.hpp
-    include/aether/res/resource_module.hpp
-    include/aether/ruby/ruby_vm.hpp
-    include/aether/ruby/ruby_module.hpp
-    include/aether/game/event_system.hpp
-    include/aether/game/database.hpp
-    include/aether/plugin/plugin_loader.hpp
+    # Physics / Nav / Scene
+    src/phys/collision.cpp
+    src/nav/pathfinding.cpp
+    src/scene/scene.cpp
 )
 
 # -----------------------------------------------------------------------------
@@ -93,23 +60,44 @@ if(AETHER_WITH_GLFW)
 endif()
 
 if(AETHER_GLFW_AVAILABLE AND TARGET glfw)
-    list(APPEND AETHER_ENGINE_SOURCES src/window/glfw_window.cpp)
+    list(APPEND AETHER_ENGINE_SOURCES
+        src/window/glfw_window.cpp
+        src/window/glfw_proc.cpp
+    )
     message(STATUS "Aether Window backend: GLFW")
 else()
     set(AETHER_GLFW_AVAILABLE FALSE)
     message(STATUS "Aether Window backend: Null (headless)")
 endif()
 
-message(STATUS "Aether Renderer backend: Null (+ culling/LOD); OpenGL path optional")
-message(STATUS "Aether Audio backend: Null (MiniAudio optional later)")
+set(AETHER_OPENGL_AVAILABLE FALSE)
+if(AETHER_WITH_OPENGL AND AETHER_GLFW_AVAILABLE AND TARGET aether_glad)
+    list(APPEND AETHER_ENGINE_SOURCES src/render/gl_renderer.cpp)
+    set(AETHER_OPENGL_AVAILABLE TRUE)
+    message(STATUS "Aether Renderer: OpenGL 3.3 + Null")
+else()
+    message(STATUS "Aether Renderer: Null only")
+endif()
+
+if(AETHER_WITH_MINIAUDIO)
+    list(APPEND AETHER_ENGINE_SOURCES
+        src/audio/miniaudio_impl.cpp
+        src/audio/miniaudio_engine.cpp
+    )
+    message(STATUS "Aether Audio: MiniAudio + Null")
+else()
+    message(STATUS "Aether Audio: Null")
+endif()
+
+if(AETHER_WITH_STB)
+    list(APPEND AETHER_ENGINE_SOURCES src/res/stb_impl.cpp)
+    message(STATUS "Aether Textures: stb_image")
+endif()
 
 # -----------------------------------------------------------------------------
 # Library
 # -----------------------------------------------------------------------------
-add_library(aether_engine STATIC
-    ${AETHER_ENGINE_SOURCES}
-    ${AETHER_ENGINE_HEADERS}
-)
+add_library(aether_engine STATIC ${AETHER_ENGINE_SOURCES})
 add_library(aether::engine ALIAS aether_engine)
 
 target_include_directories(aether_engine
@@ -129,6 +117,20 @@ target_link_libraries(aether_engine
         glm::glm
 )
 
+if(AETHER_WITH_STB AND TARGET aether_stb)
+    target_link_libraries(aether_engine PUBLIC aether_stb)
+    target_compile_definitions(aether_engine PUBLIC AETHER_WITH_STB=1)
+endif()
+
+if(AETHER_WITH_MINIAUDIO AND TARGET aether_miniaudio)
+    target_link_libraries(aether_engine PUBLIC aether_miniaudio)
+    target_compile_definitions(aether_engine PUBLIC AETHER_WITH_MINIAUDIO=1)
+    # miniaudio needs dl/pthread/m on Linux
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(aether_engine PUBLIC dl m)
+    endif()
+endif()
+
 if(AETHER_GLFW_AVAILABLE AND TARGET glfw)
     target_link_libraries(aether_engine PUBLIC glfw)
     target_compile_definitions(aether_engine PUBLIC AETHER_WITH_GLFW=1)
@@ -138,7 +140,8 @@ if(AETHER_GLFW_AVAILABLE AND TARGET glfw)
     endif()
 endif()
 
-if(AETHER_WITH_OPENGL AND AETHER_GLFW_AVAILABLE)
+if(AETHER_OPENGL_AVAILABLE)
+    target_link_libraries(aether_engine PUBLIC aether_glad)
     target_compile_definitions(aether_engine PUBLIC AETHER_WITH_OPENGL=1)
 endif()
 
@@ -146,6 +149,11 @@ aether_apply_common_options(aether_engine)
 
 if(NOT MSVC)
     target_compile_options(aether_engine PRIVATE -Wno-pre-c++17-compat)
+    # miniaudio is a large single header with many conversion warnings
+    set_source_files_properties(
+        src/audio/miniaudio_impl.cpp
+        PROPERTIES COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-shadow -Wno-unused-function"
+    )
 endif()
 
 set_target_properties(aether_engine PROPERTIES
