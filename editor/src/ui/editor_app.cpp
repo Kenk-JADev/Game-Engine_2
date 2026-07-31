@@ -16,10 +16,11 @@
 #if defined(AETHER_WITH_IMGUI)
 #  include <imgui.h>
 #  if defined(AETHER_WITH_GLFW) && defined(AETHER_WITH_OPENGL)
+#    include <glad/glad.h> // ZUERST: definiert __gl_h_ (GLAD stellt GL-Header)
+#    define GLFW_INCLUDE_NONE // GLFW soll keine GL-Header laden (GLAD übernimmt)
+#    include <GLFW/glfw3.h>
 #    include <imgui_impl_glfw.h>
 #    include <imgui_impl_opengl3.h>
-#    include <GLFW/glfw3.h>
-#    include <glad/glad.h>
 #  endif
 #endif
 
