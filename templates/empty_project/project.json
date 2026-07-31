@@ -1,19 +1,19 @@
 {
   "format_version": 1,
-  "name": "New Project",
-  "version": "0.0.1",
-  "author": "",
-  "description": "",
+  "name": "Aether Demo",
+  "version": "0.1.0",
+  "author": "Aether Team",
+  "description": "Demo project showcasing AetherRPG Maker features.",
   "engine_api_version": 1,
   "start": {
     "map_id": 1,
-    "x": 0.0,
+    "x": 5.0,
     "y": 0.0,
-    "z": 0.0,
+    "z": 5.0,
     "direction": 2
   },
   "graphics": {
-    "title": "New Project",
+    "title": "Aether Demo",
     "width": 1280,
     "height": 720,
     "fullscreen": false,

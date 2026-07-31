@@ -1,0 +1,47 @@
+================================================================================
+           AetherRPG Maker - SO MACHST DU ES AUF GITHUB OHNE CMD
+================================================================================
+
+Die Änderungen sind hier fertig vorbereitet.
+
+WAS BEREITS GEMACHT WURDE:
+- START_HERE.txt, CLICK_HERE_TO_START.txt, GETTING_STARTED.md
+- start_editor.bat (Windows)
+- start_editor.sh (Linux)
+- README.md startet mit "Download + Doppelklick"
+- .github/workflows/release.yml (automatisches Bauen der Zips)
+
+================================================================================
+SCHRITTE, DIE DU JETZT MACHEN MUSST (auf deinem normalen Computer):
+================================================================================
+
+1. Wechsle in dein lokales Git-Repo (falls nicht schon):
+   cd /pfad/zu/Game-Engine_2
+
+2. Hole die Änderungen (falls du das Repo schon hast):
+   git pull origin arena/019fb747-game-engine-2
+
+3. Pushe die Änderungen:
+   git push origin arena/019fb747-game-engine-2
+
+4. Erzeuge das erste Release (sehr wichtig!):
+   git tag v0.1.0
+   git push origin v0.1.0
+
+5. Warte 5-10 Minuten.
+
+6. Gehe auf GitHub:
+   https://github.com/Kenk-JADev/Game-Engine_2/releases
+
+   Dort siehst du jetzt:
+   - AetherRPG-Maker-Windows-x64.zip
+   - AetherRPG-Maker-Linux-x64.tar.gz
+
+7. Jeder Benutzer kann jetzt:
+   - Die Zip/Tar herunterladen
+   - Entpacken
+   - Doppelklick auf start_editor.bat oder .sh
+
+   → Kein Terminal, kein CMake, kein "make" nötig!
+
+================================================================================
