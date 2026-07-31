@@ -154,4 +154,16 @@ private:
     std::unordered_map<std::string, InputAction> actions_;
 };
 
+// -----------------------------------------------------------------------------
+// Gamepad-Polling (GLFW-Backend)
+// -----------------------------------------------------------------------------
+// Deklaration auf Namespace-Ebene (NICHT als Block-Scope-extern im Aufrufer):
+// MSVC interpretiert Block-Scope-extern-Deklarationen von Funktionen als
+// globales Symbol, GCC/Clang standardkonform im umschließenden Namespace –
+// das fuehrte zu LNK2019 im Windows-Build mit GLFW.
+void input_poll_gamepads(
+    f32 deadzone, f32& lx, f32& ly,
+    std::array<ButtonState, static_cast<usize>(GamepadButton::Count)>& pad,
+    void (*update_btn)(ButtonState&, bool));
+
 } // namespace aether::input

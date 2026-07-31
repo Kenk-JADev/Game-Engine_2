@@ -95,10 +95,8 @@ void InputManager::end_frame() {
 
 void InputManager::poll_gamepads() {
 #if defined(AETHER_WITH_GLFW)
-    extern void input_poll_gamepads(
-        f32 deadzone, f32& lx, f32& ly,
-        std::array<ButtonState, static_cast<usize>(GamepadButton::Count)>& pad,
-        void (*update_btn)(ButtonState&, bool));
+    // input_poll_gamepads ist in input_manager.hpp auf Namespace-Ebene
+    // deklariert (Block-Scope-extern wuerde MSVC als globales Symbol mangen).
     // Use member update via lambda bridge
     auto* self = this;
     auto bridge = [](ButtonState& st, bool down) {
