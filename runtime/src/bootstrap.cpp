@@ -27,6 +27,45 @@
 namespace aether::runtime {
 namespace {
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
+/**
+ * @brief Verzeichnis der laufenden Executable (fuer Projekt-Fallback + Meldungen).
+ */
+std::filesystem::path exe_dir() {
+#if defined(_WIN32)
+    wchar_t buf[MAX_PATH + 2] = {};
+    const DWORD n = GetModuleFileNameW(nullptr, buf, MAX_PATH + 1);
+    if (n > 0) {
+        std::filesystem::path p(buf, buf + n);
+        return p.parent_path();
+    }
+    std::error_code ec;
+    return std::filesystem::current_path(ec);
+#else
+    std::error_code ec;
+    std::filesystem::path exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+    if (!ec) {
+        return exe.parent_path();
+    }
+    return std::filesystem::current_path(ec);
+#endif
+}
+
+/**
+ * @brief Zeigt eine Startfehler-Meldung, damit Game.exe nicht "stumm"
+ *        verschwindet (Doppelklick ohne Projekt / fehlende Dateien).
+ *        Windows: nativer MessageBox. Sonst: Konsole.
+ */
+void show_startup_error(const std::string& message) {
+    std::cerr << "[Game] FEHLER: " << message << '\n';
+#if defined(_WIN32)
+    MessageBoxA(nullptr, message.c_str(), "AetherRPG Game", MB_OK | MB_ICONERROR);
+#endif
+}
+
 core::EngineConfig make_engine_config(const shared::ProjectDescriptor& project,
                                       const RuntimeOptions& opt) {
     core::EngineConfig cfg;
@@ -676,8 +715,24 @@ int run_game(const RuntimeOptions& options) {
 
     RuntimeState rs;
     std::string err;
-    if (!shared::load_project_descriptor(options.project_path, rs.project, &err)) {
-        std::cerr << "Failed to load project: " << err << '\n';
+
+    // 1) Expliziter Pfad (--project / Argument)
+    bool loaded = shared::load_project_descriptor(options.project_path, rs.project, &err);
+    if (!loaded && options.project_path == ".") {
+        // 2) Doppelklick-Fall: im Verzeichnis der Game.exe nach project.json
+        //    suchen (exportierte Spiele liegen neben der Runtime).
+        err.clear();
+        const auto exe = exe_dir() / "project.json";
+        loaded = shared::load_project_descriptor(exe, rs.project, &err);
+        if (loaded) {
+            core::log_info("Runtime", "Projekt aus Exe-Verzeichnis: " + exe.string());
+        }
+    }
+    if (!loaded) {
+        const std::string msg = "Kein Projekt gefunden.\n\n" + err +
+                                "\n\nStarte Game.exe im Ordner mit project.json "
+                                "oder mit:  Game --project <Pfad>";
+        show_startup_error(msg);
         return 1;
     }
 
