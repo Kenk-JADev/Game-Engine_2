@@ -81,6 +81,19 @@ jobs:
           echo "======== COMPILE/LINK ERRORS ========"
           grep -nE 'error:|fatal error:|undefined reference|ld returned|FAILED:|error C[0-9]+' build.log || true
 
+      - name: Milestone 01 – EventBridge Smoke Test (Headless)
+        run: |
+          set -euxo pipefail
+          # Kompiliert test_event_bridge.cpp mit event_bridge.cpp ohne Fenster
+          g++ -std=c++20 -O0 -g \
+            -I. -Iengine/include -Ishared/include -Ithird_party/nlohmann -Ithird_party/stb \
+            tests/integration/test_event_bridge.cpp \
+            engine/src/game/event_bridge.cpp \
+            engine/src/game/event_system.cpp \
+            engine/src/core/logger.cpp \
+            -lpthread -o build/test_event_bridge_smoke
+          ./build/test_event_bridge_smoke
+
       - name: Unit & smoke tests (headless)
         run: |
           set -euxo pipefail
@@ -159,6 +172,18 @@ jobs:
             -DAETHER_WITH_OPENGL=OFF \
             -DAETHER_WITH_MRUBY=OFF \
             -DAETHER_BUILD_TESTS=ON
+
+      - name: Milestone 01 – EventBridge Smoke (Headless, Null backends)
+        run: |
+          set -euxo pipefail
+          g++ -std=c++20 -O0 -g \
+            -I. -Iengine/include -Ishared/include -Ithird_party/nlohmann -Ithird_party/stb \
+            tests/integration/test_event_bridge.cpp \
+            engine/src/game/event_bridge.cpp \
+            engine/src/game/event_system.cpp \
+            engine/src/core/logger.cpp \
+            -lpthread -o build/test_event_bridge_smoke
+          ./build/test_event_bridge_smoke
 
       - name: Build & test
         run: |
