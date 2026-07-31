@@ -1,0 +1,23 @@
+================================================================================
+  AetherRPG Maker - START HERE (Doppelklick / Double Click)
+================================================================================
+
+DIE EINFACHSTE METHODE:
+
+1. Gehe zu: https://github.com/Kenk-JADev/Game-Engine_2/releases/latest
+
+2. Lade die Datei für dein System herunter:
+   - Windows → AetherRPG-Maker-Windows-x64.zip
+   - Linux   → AetherRPG-Maker-Linux-x64.tar.gz
+
+3. Entpacke die Datei
+
+4. Doppelklicke auf:
+   • Windows:  start_editor.bat
+   • Linux:    start_editor.sh   (oder Rechtsklick → Als Programm ausführen)
+
+Fertig! Der Editor startet sofort.
+
+Du brauchst KEINEN Terminal, KEIN CMake, KEIN Kompilieren.
+
+================================================================================

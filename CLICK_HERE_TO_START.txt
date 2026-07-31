@@ -1,0 +1,23 @@
+================================================================================
+                    AetherRPG Maker - Klicke hier zum Starten
+================================================================================
+
+1. Gehe auf GitHub zu diesem Repository
+2. Klicke oben auf "Releases" (oder diesen Link):
+   https://github.com/Kenk-JADev/Game-Engine_2/releases/latest
+
+3. Lade die Datei herunter, die zu deinem Betriebssystem passt:
+
+   Windows:   AetherRPG-Maker-Windows-x64.zip
+   Linux:     AetherRPG-Maker-Linux-x64.tar.gz
+
+4. Entpacke die Datei
+
+5. Doppelklicke auf:
+   - Windows:  start_editor.bat
+   - Linux:    start_editor.sh
+
+Fertig! Du kannst sofort dein eigenes 3D-RPG erstellen.
+
+Kein Kompilieren. Keine Kommandozeile. Einfach Doppelklick.
+================================================================================

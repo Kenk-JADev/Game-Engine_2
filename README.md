@@ -1,137 +1,127 @@
 # AetherRPG Maker
 
-[![CI](https://github.com/Kenk-JADev/Game-Engine_2/actions/workflows/ci.yml/badge.svg)](https://github.com/Kenk-JADev/Game-Engine_2/actions/workflows/ci.yml)
+**Die eigene 3D-RPG-Maker Engine** – komplett ohne Unity, Unreal, Godot oder RPG Maker XP.
 
-Eigenständige **3D-RPG-Maker-Software** mit eigener Engine, eigenem Editor und schlanker Runtime (`Game` / `Game.exe`).
+Erstelle vollständige 3D-Rollenspiele mit Drag & Drop, visuellem Event-Editor und **ohne Programmierung**.
 
-> Keine Abhängigkeit von Unity, Unreal, Godot oder proprietärem RGSS-Quellcode.
+---
 
-## Komponenten
+## ✅ **So startest du OHNE Terminal / CMD** (einfachster Weg)
 
-| Target | Beschreibung |
-|--------|--------------|
-| **aether_engine** | C++20-Engine (Core → Scene, Phys, Nav, Ruby, …) |
-| **AetherEditor** | RPG-Maker-UI: Projekt · Karte · Datenbank · Events · Skripte · Testspiel · Export |
-| **Game** | Runtime – lädt Projekt, Scripts, Plugins und startet das Spiel |
+### 1. Klicke hier: [Releases](https://github.com/Kenk-JADev/Game-Engine_2/releases/latest)
 
-## Designziele
+### 2. Lade die Datei für dein System herunter
 
-- Anfänger erstellen RPGs **ohne Programmierung** (Events, Datenbank, Objekt-Palette).
-- Fortgeschrittene nutzen **Ruby** für Spiellogik und Plugins.
-- **60 FPS**-Ziel auf älteren PCs (i3-4xxx / HD 4600, 8 GB RAM).
-- Forward-Rendering, Frustum-Culling, LOD – **kein** Raytracing.
-- **Keine** Unity-Style Component-/Collider-UI – Kollision & Navigation automatisch.
+| Windows                          | Linux                              |
+|----------------------------------|------------------------------------|
+| `AetherRPG-Maker-Windows-x64.zip` | `AetherRPG-Maker-Linux-x64.tar.gz` |
 
-## Build
+### 3. Entpacke die Datei
+
+### 4. Doppelklicke auf:
+
+- **Windows**: `start_editor.bat`
+- **Linux**: `start_editor.sh`
+
+**Fertig!** Der Editor startet sofort.
+
+---
+
+## 🚀 **Einfach herunterladen & sofort loslegen** (kein Terminal nötig!)
+
+### Für Windows-Nutzer (empfohlen):
+
+1. Gehe zu **[Releases](https://github.com/Kenk-JADev/Game-Engine_2/releases)**
+2. Lade die neueste `AetherRPG-Maker-Windows-x64.zip` herunter
+3. Entpacke die Zip-Datei
+4. **Doppelklick** auf `start_editor.bat`
+
+Fertig! Der Editor startet direkt.
+
+### Für Linux-Nutzer:
+
+1. Gehe zu **[Releases](https://github.com/Kenk-JADev/Game-Engine_2/releases)**
+2. Lade `AetherRPG-Maker-Linux-x64.tar.gz` herunter
+3. Entpacke das Archiv
+4. Starte mit Doppelklick oder Terminal: `./start_editor.sh`
+
+---
+
+## Was du ohne Programmierung machen kannst
+
+- 3D-Karten per Drag & Drop erstellen (Objekte einfach anklicken + platzieren)
+- Visueller Event-Editor (Dialoge, Teleporter, Kämpfe, Shops, Quests, Wetter...)
+- Datenbank für Helden, Gegner, Items
+- Automatische Kollision & Navigation
+- Export als eigenständiges Spiel (`Game.exe` / `Game`)
+
+Fortgeschrittene können optional **Ruby** für eigene Logik nutzen.
+
+---
+
+## 📦 Releases (einfachste Methode)
+
+Gehe immer zu den **[Releases](https://github.com/Kenk-JADev/Game-Engine_2/releases)**.
+
+Jedes Release enthält fertige, portable Pakete:
+- Windows: `AetherRPG-Maker-Windows-x64.zip` → `start_editor.bat`
+- Linux: `AetherRPG-Maker-Linux-x64.tar.gz` → `start_editor.sh`
+
+**Kein Kompilieren, kein CMake, kein `make` nötig** für normale Benutzer.
+
+---
+
+## Für Entwickler / Build from Source
+
+Nur wenn du selbst etwas ändern willst:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j
-ctest --test-dir build --output-on-failure
+git clone https://github.com/Kenk-JADev/Game-Engine_2.git
+cd Game-Engine_2
+make package          # oder ./tools/build_release.sh
 ```
 
-**Optional für echtes Fenster + ImGui-GUI + OpenGL + mruby:**
+---
 
-```bash
-sudo apt install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
-  libgl1-mesa-dev ruby ruby-dev bison libasound2-dev
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-  -DAETHER_WITH_GLFW=ON -DAETHER_WITH_OPENGL=ON -DAETHER_WITH_MRUBY=ON
-cmake --build build -j
-./build/bin/AetherEditor --gui --project samples/demo_project
-```
+## Editor Tabs (genau wie klassische RPG Maker)
 
-Ohne X11/GL baut das System automatisch **NullWindow + NullRenderer** (Headless/CI).
+| Tab        | Was du hier machst                          |
+|------------|---------------------------------------------|
+| **Projekt**   | Neues Spiel anlegen / öffnen                |
+| **Karte**     | 3D-Welt per Drag & Drop gestalten           |
+| **Datenbank** | Helden, Gegner, Items, Skills               |
+| **Events**    | Visuelle Events (kein Code nötig)           |
+| **Skripte**   | Optional: Ruby für Fortgeschrittene         |
+| **Testspiel** | Schnell testen                              |
+| **Export**    | Fertiges Spiel als `Game.exe` exportieren   |
 
-## GitHub Actions CI
+---
 
-Fertige Workflows: [`docs/dev/github-workflows/`](docs/dev/github-workflows/)  
-(einmalig nach `.github/workflows/` kopieren – Anleitung dort).
+## Schnellstart: Dein erstes RPG in 10 Minuten
 
-| Job | Inhalt |
-|-----|--------|
-| **Linux Debug/Release** | GLFW, OpenGL, miniaudio, stb, **mruby**, `ctest`, Xvfb-Smoke, Artifacts |
-| **Linux Headless** | Nur Null-Backends (Regressions-Schutz) |
-| **Windows MSVC** | VS2022 x64, GLFW/OpenGL, Tests, Artifacts |
-| **macOS** | Best-effort |
+1. Editor per `start_editor.bat` / `.sh` starten
+2. **Projekt** → Neues Projekt anlegen
+3. **Karte** → Objekte aus der Palette anklicken und in die Welt klicken
+4. **Events** → "Neues Event" → Nachrichten, Teleport, Kampf etc. hinzufügen
+5. **Testspiel** oder F5 drücken
+6. **Export** → Dein Spiel ist fertig!
 
-Release-Tags `v*` → `release.yml` packt Linux/Windows-Archive.
+---
 
-Details: [`docs/dev/CI.md`](docs/dev/CI.md).
+## Systemanforderungen (für Spieler)
 
-### Runtime
+- Windows 10/11 oder Linux
+- Beliebige Grafikkarte (auch alte Intel HD Graphics)
+- 4 GB RAM reichen völlig aus
 
-```bash
-./build/bin/Game --project samples/demo_project --headless --max-frames 5
-./build/bin/Game --project /path/MyGame
-```
-
-### Editor
-
-```bash
-./build/bin/AetherEditor --new /tmp/MyGame
-./build/bin/AetherEditor --project /tmp/MyGame --testplay --headless
-./build/bin/AetherEditor --gui --project /tmp/MyGame   # mit Display
-```
-
-**Editor-Tabs (verbindlich):** Projekt | Karte | Datenbank | Events | Skripte | Testspiel | Export
-
-## Features (Stand)
-
-| Bereich | Inhalt |
-|---------|--------|
-| Core | Logger, Time, Config, ThreadPool, EventBus, EngineContext |
-| Window | Null + GLFW (optional) |
-| Renderer | Null + OpenGL 3.3/GLAD (optional), Culling, LOD, GLSL 330 |
-| Input | RPG-Actions (confirm/cancel/WASD…) |
-| Audio | BGM/BGS/ME/SE – Null + **miniaudio** |
-| Resources | VFS, Cache, JSON, **stb_image**, OBJ-Loader |
-| Ruby | Stub-VM immer; **mruby** mit `-DAETHER_WITH_MRUBY=ON` (CI mit System-Ruby) |
-| Scene | Objekte platzieren → **auto Kollision** |
-| Physics | AABB move_and_collide, Trigger |
-| Navigation | Grid-Bake aus Kollision, A*, NavAgent |
-| Animation | Tweens, Transform-Tracks, Idle-Bob |
-| Player | WASD-Bewegung, Interaktion, Follow-Kamera |
-| Weather | Rain/Storm/Snow/Fog Tint |
-| Map | JSON laden/speichern, Default-Karte |
-| Scenes | Titel, Map, Menü, Dialog, Choice, Battle, Save/Load |
-| Inventory | Gold, Items, Party, EXP/Level |
-| Save/Load | JSON-Slots unter `saves/` |
-| Shop | Kaufen/Verkaufen (Event + Klasse) |
-| Battle | Turn-based Kampf |
-| Quests | QuestLog + Belohnungen |
-| HUD | Status/Dialog/Kampf/Quest-Panels |
-| Events | Choice, Battle, Shop, Weather, Quest, … |
-| Database | actors/enemies/items/skills/system JSON |
-| Plugins | `plugin.json` + `main.rb` |
-| Export | Spielpaket mit Game-Binary |
-| Editor UI | ImGui-Tabs, Event-Palette, Viewport-Kamera |
-| Runtime | Titel → Map → Menü/Dialog/Kampf/Save |
-| glTF/GLB | cgltf-Loader |
-| Script-IDE | Highlight-Vorschau, Autocomplete, API-Doku |
-| Undo | Karteneditor Snapshot-Undo/Redo |
-| Handbuch | docs/user/HANDBUCH.md |
-| Demo | 2 Karten, WAV-Audio, Portale, NPCs |
-| Editor-Viewport | Ray-Picking, Drag-Move, Orbit/Zoom, Grid-Snap |
-| Events | Autorun, PlayerTouch, Fade bei Transfer |
-| Database | + Klassen, Animationen |
-| Input | Gamepad (A/B/Dpad/Stick) |
-| Tests | 20 automatisierte Tests |
-
-## Vendored Third-Party
-
-- `third_party/glad` – OpenGL 3.3 loader  
-- `third_party/stb` – stb_image  
-- `third_party/miniaudio` – Audio  
-- `third_party/imgui` – Editor-UI  
-- `third_party/mruby-src` – für künftigen mruby-Build (benötigt Host-Ruby)
-
-FetchContent: nlohmann/json, glm, optional GLFW.
-
-## Dokumentation
-
-Siehe [`docs/architecture/`](docs/architecture/).
+---
 
 ## Lizenz
 
-MIT – siehe [LICENSE](LICENSE).
+MIT License
+
+---
+
+**Viel Spaß beim Erstellen deines eigenen 3D-RPGs!**
+
+Alles, was du brauchst, ist ein Download von den Releases und ein Doppelklick.

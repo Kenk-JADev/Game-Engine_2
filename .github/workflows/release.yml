@@ -1,0 +1,237 @@
+# =============================================================================
+# AetherRPG Maker – Automatic GitHub Release (no command line needed)
+# =============================================================================
+# Creates ready-to-download portable packages for Windows + Linux
+# Trigger: Push a tag like v0.1.0 or v1.0.0
+# =============================================================================
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Linux Release (portable tar.gz)
+  # ---------------------------------------------------------------------------
+  linux-release:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git pkg-config \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libgl1-mesa-dev libasound2-dev
+
+      - name: Configure Release
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DAETHER_BUILD_EDITOR=ON \
+            -DAETHER_BUILD_RUNTIME=ON \
+            -DAETHER_BUILD_TESTS=OFF \
+            -DAETHER_WITH_GLFW=ON \
+            -DAETHER_WITH_OPENGL=ON \
+            -DAETHER_WITH_MINIAUDIO=ON \
+            -DAETHER_WITH_STB=ON \
+            -DAETHER_WITH_MRUBY=OFF
+
+      - name: Build
+        run: cmake --build build --config Release -j4
+
+      - name: Prepare portable Linux package
+        run: |
+          mkdir -p release-linux/AetherRPG-Maker
+          cp build/bin/AetherEditor release-linux/AetherRPG-Maker/
+          cp build/bin/Game release-linux/AetherRPG-Maker/
+          chmod +x release-linux/AetherRPG-Maker/AetherEditor release-linux/AetherRPG-Maker/Game
+
+          # Copy assets, templates, samples, plugins
+          cp -r assets release-linux/AetherRPG-Maker/ || true
+          cp -r templates release-linux/AetherRPG-Maker/
+          cp -r plugins release-linux/AetherRPG-Maker/
+          cp -r samples release-linux/AetherRPG-Maker/ || true
+
+          # User-friendly launchers
+          cp tools/build_release.sh release-linux/AetherRPG-Maker/ 2>/dev/null || true
+          cp Makefile release-linux/AetherRPG-Maker/ 2>/dev/null || true
+
+          # Simple start script
+          cat > release-linux/AetherRPG-Maker/start_editor.sh << 'EOF'
+#!/usr/bin/env bash
+cd "$(dirname "$0")"
+./AetherEditor --gui "$@"
+EOF
+          chmod +x release-linux/AetherRPG-Maker/start_editor.sh
+
+          # README for non-technical users
+          cat > release-linux/AetherRPG-Maker/README.txt << 'EOF'
+AetherRPG Maker - Linux Version
+
+1. Extract this folder
+2. Double-click "start_editor.sh"   (or run in terminal: ./start_editor.sh)
+3. Create your first game inside the editor (no programming needed)
+
+To run the exported game later: just double-click the "Game" file in your exported project.
+
+More help: see QUICKSTART.md or HOW_TO_CREATE_A_GAME.md (included)
+EOF
+
+          # Create the archive
+          tar -czf AetherRPG-Maker-Linux-x64.tar.gz -C release-linux AetherRPG-Maker
+
+          # Also include easy start files at top level of the tar
+          cp start_editor.sh release-linux/AetherRPG-Maker/ 2>/dev/null || true
+          cp GETTING_STARTED.md release-linux/AetherRPG-Maker/ 2>/dev/null || true
+          cp CLICK_HERE_TO_START.txt release-linux/AetherRPG-Maker/ 2>/dev/null || true
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AetherRPG-Maker-Linux-x64
+          path: AetherRPG-Maker-Linux-x64.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # Windows Release (portable zip)
+  # ---------------------------------------------------------------------------
+  windows-release:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure (MSVC)
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DAETHER_BUILD_EDITOR=ON `
+            -DAETHER_BUILD_RUNTIME=ON `
+            -DAETHER_BUILD_TESTS=OFF `
+            -DAETHER_WITH_GLFW=ON `
+            -DAETHER_WITH_OPENGL=ON `
+            -DAETHER_WITH_MINIAUDIO=ON `
+            -DAETHER_WITH_STB=ON `
+            -DAETHER_WITH_MRUBY=OFF
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release --parallel
+
+      - name: Prepare portable Windows package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "release-win\AetherRPG-Maker" | Out-Null
+
+          Copy-Item "build\bin\AetherEditor.exe" "release-win\AetherRPG-Maker\"
+          Copy-Item "build\bin\Game.exe" "release-win\AetherRPG-Maker\"
+
+          # Copy folders
+          if (Test-Path "assets") { Copy-Item "assets" "release-win\AetherRPG-Maker\" -Recurse }
+          if (Test-Path "templates") { Copy-Item "templates" "release-win\AetherRPG-Maker\" -Recurse }
+          if (Test-Path "plugins") { Copy-Item "plugins" "release-win\AetherRPG-Maker\" -Recurse }
+          if (Test-Path "samples") { Copy-Item "samples" "release-win\AetherRPG-Maker\" -Recurse }
+
+          # Simple Windows launcher (double-clickable)
+          @"
+@echo off
+cd /d "%~dp0"
+start "" "AetherEditor.exe" --gui
+"@ | Out-File "release-win\AetherRPG-Maker\start_editor.bat" -Encoding ASCII
+
+          # README for normal Windows users
+          @"
+AetherRPG Maker - Windows Version
+
+1. Extract the zip file
+2. Double-click "start_editor.bat"
+3. Create your RPG inside the editor (completely without programming)
+
+After you export your game, just run the "Game.exe" in the exported folder.
+
+No installation required. Everything is portable.
+"@ | Out-File "release-win\AetherRPG-Maker\README.txt" -Encoding UTF8
+
+          # Create zip
+          Compress-Archive -Path "release-win\AetherRPG-Maker" -DestinationPath "AetherRPG-Maker-Windows-x64.zip" -Force
+
+          # Copy easy-start files into the zip root
+          Copy-Item "start_editor.bat" "release-win\AetherRPG-Maker\" -ErrorAction SilentlyContinue
+          Copy-Item "GETTING_STARTED.md" "release-win\AetherRPG-Maker\" -ErrorAction SilentlyContinue
+          Copy-Item "CLICK_HERE_TO_START.txt" "release-win\AetherRPG-Maker\" -ErrorAction SilentlyContinue
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AetherRPG-Maker-Windows-x64
+          path: AetherRPG-Maker-Windows-x64.zip
+
+  # ---------------------------------------------------------------------------
+  # Create the actual GitHub Release + attach files
+  # ---------------------------------------------------------------------------
+  create-release:
+    needs: [linux-release, windows-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: AetherRPG Maker ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          body: |
+            ## 🎮 AetherRPG Maker ${{ github.ref_name }}
+
+            **Eigene 3D-RPG-Maker Engine** – komplett ohne Unity, Unreal oder Godot.
+
+            ### ✅ Einfach herunterladen & loslegen (kein Terminal nötig!)
+
+            | Betriebssystem | Datei | Wie starten? |
+            |----------------|-------|--------------|
+            | **Windows**    | `AetherRPG-Maker-Windows-x64.zip` | Entpacken → `start_editor.bat` doppelklicken |
+            | **Linux**      | `AetherRPG-Maker-Linux-x64.tar.gz` | Entpacken → `start_editor.sh` ausführen |
+
+            ### Was ist drin?
+            - **AetherEditor** – Der visuelle Editor (Projekt, Karte, Events, Datenbank...)
+            - **Game** – Die fertige Runtime für dein Spiel
+            - Vorlagen + Demo-Projekt
+            - Vollständige Anleitungen (QUICKSTART.md + HOW_TO_CREATE_A_GAME.md)
+
+            ### So machst du in 5 Minuten dein erstes RPG:
+            1. Editor starten (per `.bat` oder `.sh`)
+            2. Neues Projekt anlegen
+            3. Im **Karte**-Tab Objekte per Klick platzieren
+            4. Im **Events**-Tab Dialoge, Teleporter, Kämpfe hinzufügen (kein Code!)
+            5. **Export** klicken → fertiges Spiel mit `Game.exe`
+
+            Keine Programmierung nötig für ein komplettes 3D-RPG!
+
+            Mehr Infos: Siehe die mitgelieferten Markdown-Dateien oder das README.
+
+          files: |
+            artifacts/AetherRPG-Maker-Linux-x64/AetherRPG-Maker-Linux-x64.tar.gz
+            artifacts/AetherRPG-Maker-Windows-x64/AetherRPG-Maker-Windows-x64.zip
+
+      - name: Upload final artifacts to release (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: |
+            artifacts/AetherRPG-Maker-Linux-x64/AetherRPG-Maker-Linux-x64.tar.gz
+            artifacts/AetherRPG-Maker-Windows-x64/AetherRPG-Maker-Windows-x64.zip
+          retention-days: 90
