@@ -192,23 +192,35 @@ if(NOT rv EQUAL 0)
 endif()
 ")
 
-    include(ExternalProject)
-    ExternalProject_Add(mruby_ext
-        SOURCE_DIR ${_mruby_src}
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ${CMAKE_COMMAND} -P ${_mruby_script}
-        BUILD_IN_SOURCE 0
-        INSTALL_COMMAND ""
-        BUILD_BYPRODUCTS ${_mruby_lib}
-        LOG_BUILD 1
+    # mruby beim CONFIGURE bauen (deterministisch fuer CI):
+    # - gelingt der rake-Build, wird echtes mruby gelinkt (AETHER_WITH_MRUBY)
+    # - schlaegt er fehl, faellt die Engine automatisch auf StubRubyVM zurueck
+    #   (Warnung) statt den gesamten Build scheitern zu lassen.
+    message(STATUS "mruby: building via rake (configure-time)...")
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -P "${_mruby_script}"
+        RESULT_VARIABLE _mruby_rv
     )
+    if(NOT _mruby_rv EQUAL 0)
+        message(WARNING
+            "mruby build failed (${_mruby_rv}) – using StubRubyVM instead. "
+            "Install ruby/rake/bison or use a vendored third_party/mruby-src.")
+        set(AETHER_MRUBY_AVAILABLE FALSE PARENT_SCOPE)
+        return()
+    endif()
+    if(NOT EXISTS "${_mruby_lib}")
+        message(WARNING
+            "mruby library not found after build (${_mruby_lib}) – using StubRubyVM.")
+        set(AETHER_MRUBY_AVAILABLE FALSE PARENT_SCOPE)
+        return()
+    endif()
+    message(STATUS "mruby: built ${_mruby_lib}")
 
     add_library(aether_mruby STATIC IMPORTED GLOBAL)
     set_target_properties(aether_mruby PROPERTIES
         IMPORTED_LOCATION ${_mruby_lib}
         INTERFACE_INCLUDE_DIRECTORIES "${_mruby_src}/include"
     )
-    add_dependencies(aether_mruby mruby_ext)
 
     # mruby may need libm / dl
     if(UNIX AND NOT APPLE)
@@ -217,7 +229,7 @@ endif()
 
     set(AETHER_MRUBY_AVAILABLE TRUE PARENT_SCOPE)
     set(AETHER_MRUBY_INCLUDE_DIR "${_mruby_src}/include" PARENT_SCOPE)
-    message(STATUS "mruby: will build into ${_mruby_build}")
+    message(STATUS "mruby: ready (lib: ${_mruby_lib})")
 endfunction()
 
 # Threads (Standard)
