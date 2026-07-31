@@ -220,6 +220,14 @@ bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
     rs.map_active = true;
     rs.event_runner.reset_map();
     rs.event_bridge.clear(); // Milestone 01: EventBridge-Lifecycle bei Kartenwechsel
+
+    // Milestone 01: Event-Registrierung beim Laden (für Spieltest notwendig)
+    for (auto& obj : rs.scene->objects()) {
+        if (obj.map_event && !obj.map_event->pages.empty()) {
+            rs.event_bridge.register_event(*obj.map_event, EventTrigger::ActionButton);
+        }
+    }
+
     rs.fade.fade_in(0.35f);
     return true;
 }
