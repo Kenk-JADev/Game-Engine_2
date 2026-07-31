@@ -20,6 +20,7 @@
 #include <aether/ruby/ruby_host.hpp>
 #include <aether/shared/project_descriptor.hpp>
 
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -44,7 +45,8 @@ core::EngineConfig make_engine_config(const shared::ProjectDescriptor& project,
     cfg.paths.project_dir = project.root_dir;
     cfg.paths.logs_dir = project.root_dir / "logs";
     cfg.enable_ruby = opt.enable_ruby;
-    cfg.log.level = opt.headless ? "warn" : "info";
+    cfg.log.level = opt.log_level.empty() ? (opt.headless ? "warn" : "info")
+                                          : opt.log_level;
     cfg.log.console = true;
     cfg.log.file = !opt.headless;
     return cfg;
@@ -86,6 +88,13 @@ struct RuntimeState {
     res::ResourceManager* resources = nullptr; ///< gesetzt in run_game
     i32 playtime = 0;
     f64 playtime_accum = 0.0;
+    // Laufende Event-Animation (einfache Skalen-Puls-Animation)
+    anim::Animator event_anim;
+    EntityId event_anim_target = kInvalidEntity;
+    // Kamera-Shake
+    f32 shake_power = 0.0f;
+    f32 shake_time = 0.0f;
+    f32 shake_total = 0.0f;
     bool map_active = false;
     std::unique_ptr<ruby::RubyVM> vm;
     std::unique_ptr<ruby::RubyHost> ruby_host;
@@ -353,12 +362,72 @@ void handle_event_requests(RuntimeState& rs) {
         start_battle(rs, eid);
         break;
     }
-    case game::EventRequest::Kind::Camera:
-        // soft: snap follow camera offset
-        rs.follow_cam.set_offsets(req.params.value("height", 10.0f),
-                                  req.params.value("back", 12.0f));
+    case game::EventRequest::Kind::Camera: {
+        const auto& p = req.params;
+        // Follow-Kamera-Offset (RPG-Stil)
+        if (p.contains("height") || p.contains("back")) {
+            rs.follow_cam.set_offsets(p.value("height", 10.0f), p.value("back", 12.0f));
+        }
+        // Absolute Kamera-Position / Blickziel
+        if (p.contains("x") && p.contains("y") && p.contains("z")) {
+            rs.camera.set_position({p["x"].get<f32>(), p["y"].get<f32>(), p["z"].get<f32>()});
+        }
+        if (p.contains("tx") && p.contains("ty") && p.contains("tz")) {
+            rs.camera.set_target({p["tx"].get<f32>(), p["ty"].get<f32>(), p["tz"].get<f32>()});
+        }
+        // Shake
+        if (p.contains("shake")) {
+            rs.shake_power = p.value("shake", 0.0f);
+            rs.shake_time = p.value("duration", 0.3f);
+            rs.shake_total = std::max(rs.shake_time, 1.0e-3f);
+        }
         rs.interpreter.clear_pending();
         break;
+    }
+    case game::EventRequest::Kind::Animation: {
+        // Animation aus der Datenbank → Skalen-Puls auf dem Zielobjekt
+        const u32 anim_id = req.params.value("animation_id", 1u);
+        const game::AnimationData* def = nullptr;
+        for (const auto& a : rs.database.animations) {
+            if (a.id == anim_id) {
+                def = &a;
+                break;
+            }
+        }
+        EntityId target = rs.player.entity_id();
+        const std::string target_name = req.params.value("target", "");
+        if (!target_name.empty() && rs.scene) {
+            for (const auto& o : rs.scene->objects()) {
+                if (o.name == target_name) {
+                    target = o.id;
+                    break;
+                }
+            }
+        }
+        rs.event_anim_target = target;
+        if (def && rs.scene) {
+            if (auto* o = rs.scene->find(target)) {
+                const f32 dur = std::max(
+                    0.2f, static_cast<f32>(def->frames) * 0.1f / std::max(def->speed, 0.01f));
+                anim::TransformTrack track;
+                track.duration = dur;
+                track.loop = false;
+                track.keys = {
+                    {0.0f, o->transform.position, o->transform.scale, 0.0f},
+                    {dur * 0.4f, o->transform.position, o->transform.scale * 1.5f, 0.0f},
+                    {dur, o->transform.position, o->transform.scale, 0.0f},
+                };
+                rs.event_anim.play(std::move(track));
+                core::log_info("Anim",
+                               "PlayAnimation '" + def->name + "' auf '" +
+                                   (target_name.empty() ? "Player" : target_name) + "'");
+            }
+        } else {
+            core::log_warn("Anim", "unknown animation id " + std::to_string(anim_id));
+        }
+        rs.interpreter.clear_pending();
+        break;
+    }
     default:
         rs.interpreter.clear_pending();
         break;
@@ -579,6 +648,8 @@ RuntimeOptions parse_args(int argc, char** argv) {
             opt.max_frames = std::stoi(argv[++i]);
         } else if (a == "--no-ruby") {
             opt.enable_ruby = false;
+        } else if ((a == "--log-level") && i + 1 < argc) {
+            opt.log_level = argv[++i];
         } else if (a == "--help" || a == "-h") {
             std::cout
                 << "AetherRPG Game Runtime\n"
@@ -587,6 +658,7 @@ RuntimeOptions parse_args(int argc, char** argv) {
                 << "  --headless             No window (CI)\n"
                 << "  --max-frames <n>       Exit after n frames\n"
                 << "  --no-ruby              Skip script boot\n"
+                << "  --log-level <level>    trace|debug|info|warn|error\n"
                 << "  -h, --help             Show help\n";
             opt.max_frames = 0;
         } else if (!a.empty() && a[0] != '-') {
@@ -741,6 +813,20 @@ int run_game(const RuntimeOptions& options) {
         rs.weather.update(dt);
         rs.fade.update(dt);
 
+        // Event-Animation auf Nicht-Spieler-Objekte anwenden
+        if (rs.event_anim.playing() && rs.scene) {
+            rs.event_anim.update(static_cast<f32>(dt));
+            if (rs.event_anim.playing()) {
+                auto* o = rs.scene->find(rs.event_anim_target);
+                if (o && rs.event_anim_target != rs.player.entity_id()) {
+                    rs.event_anim.apply(o->transform);
+                    if (o->collision_id) {
+                        rs.scene->collision().set_transform(o->collision_id, o->transform);
+                    }
+                }
+            }
+        }
+
         // Finish map transfer at black
         if (rs.has_pending_transfer && rs.fade.just_black()) {
             load_map_into(rs, renderer.get(), rs.pending_transfer_map,
@@ -796,6 +882,12 @@ int run_game(const RuntimeOptions& options) {
             const int fade_req = rs.ruby_host->take_fade_request();
             if (fade_req == 1) rs.fade.fade_out(0.5f);
             if (fade_req == 2) rs.fade.fade_in(0.5f);
+            f32 sp = 0.0f, sd = 0.0f;
+            if (rs.ruby_host->take_shake(sp, sd)) {
+                rs.shake_power = sp;
+                rs.shake_time = sd;
+                rs.shake_total = std::max(sd, 1.0e-3f);
+            }
         }
 
         // Title actions
@@ -856,6 +948,18 @@ int run_game(const RuntimeOptions& options) {
         if (rs.map_active && !rs.in_battle) {
             rs.follow_cam.update(rs.player.position(), dt);
             rs.follow_cam.apply(rs.camera);
+        }
+
+        // Kamera-Shake (deterministisch, klingt mit Restzeit ab)
+        if (rs.shake_time > 0.0f) {
+            rs.shake_time -= static_cast<f32>(dt);
+            const f32 k = std::max(rs.shake_time, 0.0f) / rs.shake_total;
+            const f32 amp = rs.shake_power * k;
+            const f32 t = static_cast<f32>(frames);
+            rs.camera.set_position(
+                rs.camera.position() +
+                render::Vec3{std::sin(t * 61.0f) * amp, std::sin(t * 47.0f) * amp * 0.7f,
+                             std::cos(t * 53.0f) * amp});
         }
 
         rs.scenes.draw_overlay(rs.gctx);

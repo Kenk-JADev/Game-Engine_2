@@ -87,6 +87,27 @@ int main() {
     CHECK(db.find_class(1) != nullptr);
     CHECK(db.find_enemy(2) != nullptr);
 
+    // PlayAnimation erzeugt einen Animation-Request (kein No-Op mehr)
+    {
+        EventInterpreter anim_interp(&st);
+        anim_interp.start({{EventCommandType::PlayAnimation,
+                            {{"animation_id", 1}, {"target", "Elder"}}, {}}});
+        anim_interp.update();
+        CHECK(anim_interp.pending_request().kind == EventRequest::Kind::Animation);
+        CHECK(anim_interp.pending_request().params.value("animation_id", 0) == 1);
+        anim_interp.clear_pending();
+    }
+
+    // ControlCamera erzeugt Camera-Request
+    {
+        EventInterpreter cam_interp(&st);
+        cam_interp.start({{EventCommandType::ControlCamera,
+                           {{"height", 15}, {"back", 20}}, {}}});
+        cam_interp.update();
+        CHECK(cam_interp.pending_request().kind == EventRequest::Kind::Camera);
+        cam_interp.clear_pending();
+    }
+
     if (g_failures == 0) {
         std::puts("OK: event_runner_test passed");
         return 0;

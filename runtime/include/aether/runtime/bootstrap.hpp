@@ -16,6 +16,7 @@ struct RuntimeOptions {
     bool headless = false;                    ///< für CI / automatisierte Tests
     int max_frames = -1;                      ///< <0 = unbegrenzt; sonst Smoke-Lauf
     bool enable_ruby = true;
+    std::string log_level;                    ///< leer = default (headless: warn)
 };
 
 /**

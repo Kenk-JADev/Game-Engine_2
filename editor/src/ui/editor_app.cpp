@@ -828,6 +828,16 @@ void EditorApp::draw_events_tab() {
                     {game::EventCommandType::Battle, {{"enemy_id", 1}}, {}});
             }
             ImGui::SameLine();
+            if (ImGui::Button("Animation")) {
+                page.commands.push_back({game::EventCommandType::PlayAnimation,
+                                         {{"animation_id", 1}, {"target", "Player"}}, {}});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Kamera")) {
+                page.commands.push_back({game::EventCommandType::ControlCamera,
+                                         {{"height", 10.0f}, {"back", 12.0f}}, {}});
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Quest")) {
                 page.commands.push_back(
                     {game::EventCommandType::StartQuest, {{"id", "main_001"}}, {}});
@@ -894,6 +904,24 @@ void EditorApp::draw_events_tab() {
                         cmd.params["x"] = p[0];
                         cmd.params["y"] = p[1];
                         cmd.params["z"] = p[2];
+                    }
+                } else if (cmd.type == game::EventCommandType::PlayAnimation) {
+                    int aid = cmd.params.value("animation_id", 1);
+                    char tbuf[128];
+                    std::snprintf(tbuf, sizeof(tbuf), "%s",
+                                  cmd.params.value("target", "").c_str());
+                    if (ImGui::InputInt("Animation (Datenbank-ID)", &aid))
+                        cmd.params["animation_id"] = aid;
+                    if (ImGui::InputText("Zielobjekt (Name)", tbuf, sizeof(tbuf)))
+                        cmd.params["target"] = tbuf;
+                } else if (cmd.type == game::EventCommandType::ControlCamera) {
+                    float h = cmd.params.value("height", 10.0f);
+                    float b = cmd.params.value("back", 12.0f);
+                    if (ImGui::InputFloat("Kamera-Höhe", &h)) cmd.params["height"] = h;
+                    if (ImGui::InputFloat("Kamera-Abstand", &b)) cmd.params["back"] = b;
+                    if (ImGui::Button("Shake testen (2 / 0.5 s)")) {
+                        cmd.params["shake"] = 2.0f;
+                        cmd.params["duration"] = 0.5f;
                     }
                 }
                 if (ImGui::Button("Befehl löschen")) {

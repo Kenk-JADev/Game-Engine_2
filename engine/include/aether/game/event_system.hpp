@@ -92,8 +92,17 @@ private:
  * Runtime consumes these to open battle/shop/dialog choice UI.
  */
 struct EventRequest {
-    enum class Kind { None, Choice, Weather, QuestStart, QuestComplete, Shop, Battle, Camera } kind =
-        Kind::None;
+    enum class Kind {
+        None,
+        Choice,
+        Weather,
+        QuestStart,
+        QuestComplete,
+        Shop,
+        Battle,
+        Camera,
+        Animation,
+    } kind = Kind::None;
     nlohmann::json params = nlohmann::json::object();
     std::vector<std::string> choice_labels;
     int choice_result = -1; ///< set by runtime before resume

@@ -110,6 +110,20 @@ public:
         duration = shake_duration_;
     }
 
+    /**
+     * @brief Einmalige Shake-Anfrage (Runtime konsumiert; danach gelöscht).
+     */
+    bool take_shake(f32& power, f32& duration) noexcept {
+        if (shake_duration_ <= 0.0f) {
+            return false;
+        }
+        power = shake_power_;
+        duration = shake_duration_;
+        shake_power_ = 0.0f;
+        shake_duration_ = 0.0f;
+        return true;
+    }
+
     /** @brief Map-Tint (zuletzt via Map.tint gesetzt). */
     void map_tint(f32& r, f32& g, f32& b, f32& a) const noexcept {
         r = tint_.x;

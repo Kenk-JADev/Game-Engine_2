@@ -304,6 +304,10 @@ bool EventInterpreter::execute(const EventCommand& cmd) {
         return true;
 
     case EventCommandType::PlayAnimation:
+        pending_.kind = EventRequest::Kind::Animation;
+        pending_.params = cmd.params;
+        return true;
+
     case EventCommandType::Comment:
     case EventCommandType::Nop:
     case EventCommandType::End:

@@ -92,7 +92,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Navigation | Grid-Bake aus Kollision, A*, NavAgent |
 | Animation | Tweens, Transform-Tracks, Idle-Bob |
 | Player | WASD-Bewegung, Interaktion, Follow-Kamera, **Pixel-Art-Sprite** |
-| Weather | Rain/Storm/Snow/Fog Tint |
+| Weather | Rain/Storm/Snow/Fog Tint (+ **Kamera-Shake**) |
 | Map | JSON laden/speichern, Default-Karte |
 | Scenes | Titel, Map, Menü, Dialog, Choice, Battle, Save/Load, **Game Over** |
 | Inventory | Gold, Items, Party, EXP/Level |
@@ -101,7 +101,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Battle | Turn-based Kampf |
 | Quests | QuestLog + Belohnungen |
 | HUD | Status/Dialog/Kampf/Quest-Panels |
-| Events | Choice, Battle, Shop, Weather, Quest, … |
+| Events | Choice, Battle, Shop, Weather, Quest, **Animation**, **Kamera**, … |
 | Database | actors/enemies/items/skills/system JSON |
 | Plugins | `plugin.json` + `main.rb` |
 | Export | Spielpaket mit Game-Binary |
