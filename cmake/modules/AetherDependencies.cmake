@@ -201,7 +201,6 @@ endif()
         INSTALL_COMMAND ""
         BUILD_BYPRODUCTS ${_mruby_lib}
         LOG_BUILD 1
-        USES_TERMINAL_BUILD TRUE
     )
 
     add_library(aether_mruby STATIC IMPORTED GLOBAL)

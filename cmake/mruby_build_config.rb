@@ -7,7 +7,8 @@ MRuby::Build.new do |conf|
   # Core language + essentials for game scripts
   conf.gembox 'default'
 
-  conf.enable_cxx_exception
+  # Bewusst KEIN enable_cxx_exception: die Engine bindet mruby als C-Lib;
+  # C++-Exceptions im VM-Build machen den Build komplexer ohne Nutzen.
   conf.cc.flags << '-fPIC' unless conf.cc.flags.any? { |f| f.include?('fPIC') }
   conf.cxx.flags << '-fPIC' unless conf.cxx.flags.any? { |f| f.include?('fPIC') }
 
