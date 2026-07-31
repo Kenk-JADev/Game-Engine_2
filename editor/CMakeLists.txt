@@ -69,5 +69,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/templates")
         "${CMAKE_SOURCE_DIR}/templates"
         "templates")
 endif()
+# Doppelklick-Startskripte (Windows) neben den Editor kopieren
+if(WIN32)
+    aether_copy_dir_postbuild(AetherEditor
+        "${CMAKE_SOURCE_DIR}/tools/scripts"
+        ".")
+endif()
 
 install(TARGETS AetherEditor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

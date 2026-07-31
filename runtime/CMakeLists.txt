@@ -34,4 +34,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/assets/engine")
         "assets/engine")
 endif()
 
+# Doppelklick-Startskripte (Windows) neben die Runtime kopieren
+if(WIN32)
+    aether_copy_dir_postbuild(Game
+        "${CMAKE_SOURCE_DIR}/tools/scripts"
+        ".")
+endif()
+
 install(TARGETS Game RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
