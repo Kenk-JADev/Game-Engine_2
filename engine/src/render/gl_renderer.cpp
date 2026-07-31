@@ -15,6 +15,13 @@
 namespace aether::render {
 namespace {
 
+#if defined(AETHER_WITH_GLFW)
+// glfw_proc.cpp definiert die Funktion als extern "C". Die Deklaration muss
+// auf Namespace-Scope stehen: extern "C" im Funktions-Block ist laut C++
+// unzulaessig (clang auf macOS lehnt es ab, GCC/MSVC nur als Extension).
+extern "C" void* aether_glfw_get_proc_address(const char* name);
+#endif
+
 void gl_debug_clear() {
     while (glGetError() != GL_NO_ERROR) {
     }
@@ -58,9 +65,8 @@ bool GlRenderer::init_gl() {
 
     // gladLoadGLLoader needs a proc address function – GLFW provides glfwGetProcAddress
 #if defined(AETHER_WITH_GLFW)
-    // glfw_proc.cpp definiert die Funktion als extern "C" – die Deklaration
-    // hier muss dasselbe Linkage haben (sonst C++-Name-Mangling-Konflikt).
-    extern "C" void* aether_glfw_get_proc_address(const char* name);
+    // aether_glfw_get_proc_address ist oben im Namespace-Scope deklariert
+    // (extern "C", matcht die Definition in glfw_proc.cpp).
     if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(aether_glfw_get_proc_address))) {
         // Fallback: try gladLoadGL if available
         if (!gladLoadGL()) {
