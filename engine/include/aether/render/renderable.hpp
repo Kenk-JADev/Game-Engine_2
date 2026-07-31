@@ -27,6 +27,7 @@ struct Renderable {
     Material material = Material::make_default();
     Transform transform{};
     std::shared_ptr<res::TextureData> texture; ///< optionale Albedo-Textur
+    bool billboard = false;                    ///< Sprite dreht sich zur Kamera
     bool visible = true;
     bool cast_shadows = false; ///< reserviert, Phase-1 ungenutzt
     i32 layer = 0;

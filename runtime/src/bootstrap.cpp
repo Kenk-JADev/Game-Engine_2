@@ -142,12 +142,20 @@ bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
         pt.position = override_pos ? *override_pos
                                    : render::Vec3{static_cast<f32>(rs.project.start.x), 0.f,
                                                   static_cast<f32>(rs.project.start.z)};
-        pt.scale = {0.6f, 1.2f, 0.6f};
-        auto mesh = render::Mesh::create_cube(1.0f);
+        pt.scale = {0.7f, 1.1f, 0.7f};
+        auto mesh = render::Mesh::create_quad(0.7f, 1.1f);
         if (renderer) renderer->upload_mesh(*mesh);
         player_id = rs.scene->place(scene::ObjectType::Character, "Player", mesh, pt);
         if (auto* p = rs.scene->find(player_id)) {
+            p->billboard = true;
             p->material.albedo = render::Color{0.2f, 0.55f, 1.0f, 1.0f};
+            // Standard-Sprite, falls das Projekt eines mitbringt
+            if (rs.resources && rs.resources->exists("graphics/textures/hero.png")) {
+                if (auto tex = rs.resources->load_texture("graphics/textures/hero.png")) {
+                    p->texture = tex.value();
+                    p->texture_path = "graphics/textures/hero.png";
+                }
+            }
         }
     }
 
@@ -238,11 +246,26 @@ void start_battle(RuntimeState& rs, u32 enemy_id) {
                     }
                     rs.quests.advance("hunt_001");
                     rs.quests.complete("hunt_001");
-                } else if (!res.fled && !rs.inventory.party().empty()) {
-                    rs.inventory.party()[0].hp = 1; // soft fail
+                    rs.in_battle = false;
+                    rs.scenes.pop(ctx);
+                } else if (!res.fled) {
+                    // Niederlage → Game Over (kein soft fail mehr)
+                    rs.in_battle = false;
+                    rs.scenes.replace(std::make_unique<game::GameOverScene>(), ctx);
+                    auto go = std::make_unique<game::GameOverScene>();
+                    go->set_callback([&rs](const std::string& action) {
+                        rs.scenes.pop(rs.gctx);
+                        if (action == "restart") {
+                            start_new_game(rs, rs.gctx.renderer);
+                        } else {
+                            rs.scenes.replace(std::make_unique<game::TitleScene>(), rs.gctx);
+                        }
+                    });
+                    rs.scenes.replace(std::move(go), rs.gctx);
+                } else {
+                    rs.in_battle = false;
+                    rs.scenes.pop(ctx);
                 }
-                rs.in_battle = false;
-                rs.scenes.pop(ctx);
             }
         }
     });

@@ -5,6 +5,7 @@
 #include <aether/anim/animation.hpp>
 #include <aether/game/map_loader.hpp>
 #include <aether/game/player.hpp>
+#include <aether/game/scene_stack.hpp>
 #include <aether/game/weather.hpp>
 #include <aether/input/input_module.hpp>
 #include <aether/render/render_module.hpp>
@@ -107,6 +108,44 @@ int main() {
     Camera c3;
     cam.apply(c3);
     CHECK(c3.position().y > 0.0f);
+
+    // GameOver-Szene: Neustart/Titel-Callback
+    {
+        GameContext gctx;
+        InputManager in;
+        in.register_default_rpg_actions();
+        gctx.input = &in;
+        GameSceneStack stack;
+        bool action = false;
+        std::string chosen;
+        auto go = std::make_unique<GameOverScene>();
+        go->set_callback([&](const std::string& a) {
+            action = true;
+            chosen = a;
+        });
+        stack.push(std::move(go), gctx);
+        CHECK(stack.current() != nullptr);
+        CHECK(stack.current()->id() == GameSceneId::GameOver);
+
+        // Bestätigen → Neustart
+        in.begin_frame();
+        in.feed_key(Key::Enter, Action::Press);
+        stack.update(gctx);
+        CHECK(action && chosen == "restart");
+
+        // erneut: Abbruch → Titel
+        action = false;
+        auto go2 = std::make_unique<GameOverScene>();
+        go2->set_callback([&](const std::string& a) {
+            action = true;
+            chosen = a;
+        });
+        stack.replace(std::move(go2), gctx);
+        in.begin_frame();
+        in.feed_key(Key::Escape, Action::Press);
+        stack.update(gctx);
+        CHECK(action && chosen == "title");
+    }
 
     if (g_failures == 0) {
         std::puts("OK: gameplay_test passed");

@@ -70,9 +70,16 @@ public:
     [[nodiscard]] static std::shared_ptr<Mesh> create_cube(f32 size = 1.0f);
 
     /**
-     * @brief Erzeugt eine XZ-Plane.
+     * @brief Erzeugt eine XZ-Plane (Boden).
      */
     [[nodiscard]] static std::shared_ptr<Mesh> create_plane(f32 size = 10.0f);
+
+    /**
+     * @brief Erzeugt eine senkrechte XY-Quad (Billboard/Sprite).
+     *        Fußpunkt liegt bei y=0, die Fläche zeigt Richtung +Z.
+     */
+    [[nodiscard]] static std::shared_ptr<Mesh> create_quad(f32 width = 1.0f,
+                                                           f32 height = 1.0f);
 
     /** @brief GPU-Upload-Flag (Renderer setzt dies). */
     void set_gpu_ready(bool v) noexcept { gpu_ready_ = v; }

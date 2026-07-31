@@ -186,6 +186,24 @@ public:
     void draw_overlay(GameContext& ctx) override;
 };
 
+class GameOverScene final : public IGameScene {
+public:
+    [[nodiscard]] GameSceneId id() const noexcept override {
+        return GameSceneId::GameOver;
+    }
+    void on_enter(GameContext& ctx) override;
+    void update(GameContext& ctx) override;
+    void draw_overlay(GameContext& ctx) override;
+
+    /** @brief "restart" (Neues Spiel) oder "title" (zurück zum Titel). */
+    using Callback = std::function<void(const std::string& action)>;
+    void set_callback(Callback cb) { callback_ = std::move(cb); }
+
+private:
+    Callback callback_;
+    int index_ = 0;
+};
+
 class BattleScene final : public IGameScene {
 public:
     [[nodiscard]] GameSceneId id() const noexcept override {

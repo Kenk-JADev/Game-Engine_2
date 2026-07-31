@@ -44,6 +44,7 @@ struct SceneObject {
     render::Material material = render::Material::make_default();
     std::shared_ptr<res::TextureData> texture; ///< optionale Albedo-Textur (geladen)
     std::string texture_path;                  ///< logischer Pfad (JSON)
+    bool billboard = false;                    ///< Sprite dreht sich zur Kamera
     bool visible = true;
     u32 collision_id = 0;
     std::optional<game::MapEvent> map_event;

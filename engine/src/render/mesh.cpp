@@ -130,4 +130,22 @@ std::shared_ptr<Mesh> Mesh::create_plane(f32 size) {
     return mesh;
 }
 
+std::shared_ptr<Mesh> Mesh::create_quad(f32 width, f32 height) {
+    const f32 w = width * 0.5f;
+    MeshLod lod0;
+    lod0.max_distance = 1.0e9f;
+    // Vertikales Sprite: Fußpunkt y=0, nach +Z gerichtet; UV (0,0) = oben-links
+    lod0.vertices = {
+        {{-w, 0.0f, 0.0f}, {0, 0, 1}, {0, 1}, {1, 1, 1, 1}}, // unten-links
+        {{ w, 0.0f, 0.0f}, {0, 0, 1}, {1, 1}, {1, 1, 1, 1}}, // unten-rechts
+        {{ w, height, 0.0f}, {0, 0, 1}, {1, 0}, {1, 1, 1, 1}}, // oben-rechts
+        {{-w, height, 0.0f}, {0, 0, 1}, {0, 0}, {1, 1, 1, 1}}, // oben-links
+    };
+    lod0.indices = {0, 1, 2, 0, 2, 3};
+
+    auto mesh = std::make_shared<Mesh>("quad");
+    mesh->set_lod(0, std::move(lod0));
+    return mesh;
+}
+
 } // namespace aether::render

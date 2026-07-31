@@ -26,18 +26,19 @@ void assign_default_meshes(scene::Scene& sc, render::Renderer* renderer) {
              o.name.find("Floor") != std::string::npos)) {
             o.mesh = render::Mesh::create_plane(40.0f);
             o.material.albedo = render::Color{0.35f, 0.55f, 0.30f, 1.0f};
-        } else if (o.type == scene::ObjectType::Character) {
-            o.mesh = render::Mesh::create_cube(1.0f);
-            o.transform.scale = {0.6f, 1.2f, 0.6f};
-            o.material.albedo = render::Color{0.2f, 0.55f, 1.0f, 1.0f};
-        } else if (o.type == scene::ObjectType::Npc) {
-            o.mesh = render::Mesh::create_cube(1.0f);
-            o.transform.scale = {0.6f, 1.2f, 0.6f};
-            o.material.albedo = render::Color{0.3f, 0.85f, 0.45f, 1.0f};
-        } else if (o.type == scene::ObjectType::Enemy) {
-            o.mesh = render::Mesh::create_cube(1.0f);
-            o.transform.scale = {0.8f, 0.8f, 0.8f};
-            o.material.albedo = render::Color{1.0f, 0.35f, 0.3f, 1.0f};
+        } else if (o.type == scene::ObjectType::Character ||
+                   o.type == scene::ObjectType::Npc ||
+                   o.type == scene::ObjectType::Enemy) {
+            // Charaktere = Billboard-Sprites (Textur optional über texture_path)
+            o.mesh = render::Mesh::create_quad(0.7f, 1.1f);
+            o.billboard = true;
+            if (o.type == scene::ObjectType::Character) {
+                o.material.albedo = render::Color{0.2f, 0.55f, 1.0f, 1.0f};
+            } else if (o.type == scene::ObjectType::Npc) {
+                o.material.albedo = render::Color{0.3f, 0.85f, 0.45f, 1.0f};
+            } else {
+                o.material.albedo = render::Color{1.0f, 0.35f, 0.3f, 1.0f};
+            }
         } else if (o.type == scene::ObjectType::Event) {
             o.mesh = render::Mesh::create_cube(1.0f);
             o.transform.scale = {0.5f, 0.5f, 0.5f};
@@ -73,26 +74,28 @@ std::unique_ptr<scene::Scene> create_default_map(const std::string& name,
         g->material.albedo = render::Color{0.35f, 0.55f, 0.30f, 1.0f};
     }
 
-    // Player
+    // Player (Billboard-Sprite)
     render::Transform pt;
     pt.position = {0.0f, 0.0f, 0.0f};
-    pt.scale = {0.6f, 1.2f, 0.6f};
-    auto pmesh = render::Mesh::create_cube(1.0f);
+    pt.scale = {0.7f, 1.1f, 0.7f};
+    auto pmesh = render::Mesh::create_quad(0.7f, 1.1f);
     if (renderer) renderer->upload_mesh(*pmesh);
     const auto pid =
         sc->place(scene::ObjectType::Character, "Player", pmesh, pt);
     if (auto* p = sc->find(pid)) {
+        p->billboard = true;
         p->material.albedo = render::Color{0.2f, 0.55f, 1.0f, 1.0f};
     }
 
-    // NPC
+    // NPC (Billboard-Sprite)
     render::Transform nt;
     nt.position = {3.0f, 0.0f, -2.0f};
-    nt.scale = {0.6f, 1.2f, 0.6f};
-    auto nmesh = render::Mesh::create_cube(1.0f);
+    nt.scale = {0.7f, 1.1f, 0.7f};
+    auto nmesh = render::Mesh::create_quad(0.7f, 1.1f);
     if (renderer) renderer->upload_mesh(*nmesh);
     const auto nid = sc->place(scene::ObjectType::Npc, "Elder", nmesh, nt);
     if (auto* n = sc->find(nid)) {
+        n->billboard = true;
         n->material.albedo = render::Color{0.3f, 0.85f, 0.45f, 1.0f};
         // Attach a simple talk event
         game::MapEvent ev;

@@ -109,4 +109,19 @@ struct Transform {
     [[nodiscard]] static Transform identity() { return {}; }
 };
 
+/**
+ * @brief Modell-Matrix für ein Billboard (nur Yaw-Rotation Richtung Kamera).
+ *
+ * Charaktere/Sprites drehen sich um die Hochachse zur Kamera, bleiben aber
+ * aufrecht – klassischer RPG-Stil.
+ */
+[[nodiscard]] inline Mat4 billboard_model(const Transform& t, const Vec3& camera_pos) {
+    const Vec3 to_cam = camera_pos - t.position;
+    const f32 yaw = std::atan2(to_cam.x, to_cam.z);
+    Mat4 m = glm::translate(Mat4(1.0f), t.position);
+    m *= glm::rotate(Mat4(1.0f), yaw, Vec3(0.0f, 1.0f, 0.0f));
+    m = glm::scale(m, t.scale);
+    return m;
+}
+
 } // namespace aether::render

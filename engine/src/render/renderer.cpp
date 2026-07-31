@@ -70,7 +70,9 @@ void Renderer::build_draw_list(const Camera& camera,
             continue;
         }
 
-        const Mat4 model = r.transform.matrix();
+        const Mat4 model =
+            r.billboard ? billboard_model(r.transform, camera.position())
+                        : r.transform.matrix();
         const AABB world_bounds = r.mesh->bounds().transformed(model);
         const BoundingSphere sphere = BoundingSphere::from_aabb(world_bounds);
 

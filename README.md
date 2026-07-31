@@ -87,14 +87,14 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Audio | BGM/BGS/ME/SE – Null + **miniaudio** |
 | Resources | VFS, Cache, JSON, **stb_image**, OBJ-Loader, **eigener FBX-Reader** (ASCII + binär 7.x) |
 | Ruby | Stub-VM immer; **mruby** mit `-DAETHER_WITH_MRUBY=ON`; **RubyHost** mit echten Bindings für Graphics/Audio/Input/SceneManager/Player/NPC/Enemy/Camera/Weather/Inventory/Quest/Dialogue/Map/Game |
-| Scene | Objekte platzieren → **auto Kollision** |
+| Scene | Objekte platzieren → **auto Kollision**, **Billboard-Sprites** (Charaktere drehen sich zur Kamera) |
 | Physics | AABB move_and_collide, Trigger |
 | Navigation | Grid-Bake aus Kollision, A*, NavAgent |
 | Animation | Tweens, Transform-Tracks, Idle-Bob |
-| Player | WASD-Bewegung, Interaktion, Follow-Kamera |
+| Player | WASD-Bewegung, Interaktion, Follow-Kamera, **Pixel-Art-Sprite** |
 | Weather | Rain/Storm/Snow/Fog Tint |
 | Map | JSON laden/speichern, Default-Karte |
-| Scenes | Titel, Map, Menü, Dialog, Choice, Battle, Save/Load |
+| Scenes | Titel, Map, Menü, Dialog, Choice, Battle, Save/Load, **Game Over** |
 | Inventory | Gold, Items, Party, EXP/Level |
 | Save/Load | JSON-Slots unter `saves/` |
 | Shop | Kaufen/Verkaufen (Event + Klasse) |
@@ -112,7 +112,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Script-IDE | Highlight-Vorschau, Autocomplete, API-Doku |
 | Undo | Karteneditor Snapshot-Undo/Redo |
 | Handbuch | docs/user/HANDBUCH.md |
-| Demo | 2 Karten, WAV-Audio, Portale, NPCs |
+| Demo | 2 Karten, WAV-Audio, Portale, NPCs, **Sprite-Texturen** (Hero/Elder/Checker) |
 | Editor-Viewport | Ray-Picking, Drag-Move, Orbit/Zoom, Grid-Snap |
 | Events | Autorun, PlayerTouch, Fade bei Transfer |
 | Database | + Klassen, Animationen |

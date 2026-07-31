@@ -565,6 +565,7 @@ void EditorApp::draw_map_tab() {
             }
         }
         ImGui::Checkbox("Sichtbar", &obj->visible);
+        ImGui::Checkbox("Billboard (Sprite zur Kamera)", &obj->billboard);
         {
             char tex[256];
             std::snprintf(tex, sizeof(tex), "%s", obj->texture_path.c_str());

@@ -193,6 +193,35 @@ void ChoiceScene::draw_overlay(GameContext& ctx) {
     ctx.status_line = s;
 }
 
+// ---- Game Over --------------------------------------------------------------
+
+void GameOverScene::on_enter(GameContext& ctx) {
+    index_ = 0;
+    ctx.status_line = "GAME OVER";
+    core::log_info("Scene", "GameOver");
+}
+
+void GameOverScene::update(GameContext& ctx) {
+    if (!ctx.input) {
+        return;
+    }
+    auto& in = *ctx.input;
+    if (in.was_pressed("up") || in.was_pressed("down")) {
+        index_ = 1 - index_;
+    }
+    if (in.was_pressed("confirm") && callback_) {
+        callback_(index_ == 0 ? "restart" : "title");
+    }
+    if (in.was_pressed("cancel") && callback_) {
+        callback_("title");
+    }
+}
+
+void GameOverScene::draw_overlay(GameContext& ctx) {
+    static const char* items[] = {"Neustart", "Titel"};
+    ctx.status_line = std::string("GAME OVER > ") + items[index_];
+}
+
 // ---- Battle scene shell -----------------------------------------------------
 
 void BattleScene::on_enter(GameContext& ctx) {

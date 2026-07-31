@@ -34,7 +34,9 @@
         0.6
       ],
       "visible": true,
-      "mesh": "cube"
+      "mesh": "cube",
+      "texture": "graphics/textures/hero.png",
+      "billboard": true
     },
     {
       "id": 3,
@@ -157,7 +159,9 @@
             ]
           }
         ]
-      }
+      },
+      "texture": "graphics/textures/elder.png",
+      "billboard": true
     },
     {
       "id": 4,
