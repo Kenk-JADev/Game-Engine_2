@@ -69,6 +69,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/templates")
         "${CMAKE_SOURCE_DIR}/templates"
         "templates")
 endif()
+# Demo-Projekt neben den Editor kopieren (fuer 'Demo-Projekt oeffnen')
+if(EXISTS "${CMAKE_SOURCE_DIR}/samples/demo_project")
+    aether_copy_dir_postbuild(AetherEditor
+        "${CMAKE_SOURCE_DIR}/samples/demo_project"
+        "samples/demo_project")
+endif()
 # Doppelklick-Startskripte (Windows) neben den Editor kopieren
 if(WIN32)
     aether_copy_dir_postbuild(AetherEditor

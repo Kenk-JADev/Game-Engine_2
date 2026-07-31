@@ -390,6 +390,29 @@ void EditorApp::draw_project_tab() {
     if (ImGui::Button("Speichern") && project_open_) {
         save_project();
     }
+    if (!project_open_) {
+        ImGui::SameLine();
+        if (ImGui::Button("Demo-Projekt öffnen")) {
+            // Pfad zum mitgelieferten Demo (neben der Exe oder im Repo)
+            std::filesystem::path cand =
+                (project_path_buf_[0] ? std::filesystem::path(project_path_buf_)
+                                      : std::filesystem::current_path());
+            const std::filesystem::path demo1 = cand / "samples" / "demo_project";
+            const std::filesystem::path demo2 =
+                std::filesystem::current_path() / "samples" / "demo_project";
+            const auto demo = std::filesystem::exists(demo1 / "project.json")
+                                  ? demo1
+                                  : (std::filesystem::exists(demo2 / "project.json") ? demo2
+                                                                                     : cand);
+            if (std::filesystem::exists(demo / "project.json")) {
+                std::snprintf(project_path_buf_, sizeof(project_path_buf_), "%s",
+                              demo.string().c_str());
+                open_project(demo);
+            } else {
+                status_message_ = "Demo-Projekt nicht gefunden (samples/demo_project).";
+            }
+        }
+    }
 
     ImGui::Separator();
     ImGui::InputText("Neues Projekt", new_project_buf_, sizeof(new_project_buf_));

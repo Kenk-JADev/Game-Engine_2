@@ -34,6 +34,13 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/assets/engine")
         "assets/engine")
 endif()
 
+# Demo-Projekt neben die Runtime kopieren (fuer Doppelklick-Start / Testspiel)
+if(EXISTS "${CMAKE_SOURCE_DIR}/samples/demo_project")
+    aether_copy_dir_postbuild(Game
+        "${CMAKE_SOURCE_DIR}/samples/demo_project"
+        "samples/demo_project")
+endif()
+
 # Doppelklick-Startskripte (Windows) neben die Runtime kopieren
 if(WIN32)
     aether_copy_dir_postbuild(Game
