@@ -153,6 +153,7 @@ void Scene::collect_renderables(std::vector<render::Renderable>& out) const {
         r.mesh = o.mesh;
         r.material = o.material;
         r.transform = o.transform;
+        r.texture = o.texture;
         r.visible = true;
         out.push_back(std::move(r));
     }
@@ -194,6 +195,9 @@ nlohmann::json Scene::to_json() const {
             {"visible", o.visible},
             {"mesh", o.mesh ? o.mesh->name() : ""},
         };
+        if (!o.texture_path.empty()) {
+            jo["texture"] = o.texture_path;
+        }
         if (o.map_event) {
             nlohmann::json je;
             game::to_json(je, *o.map_event);
@@ -227,6 +231,7 @@ void Scene::load_from_json(Scene& out, const nlohmann::json& j) {
                                  jo["scale"][2].get<f32>()};
         }
         o.visible = jo.value("visible", true);
+        o.texture_path = jo.value("texture", std::string());
         if (jo.contains("event")) {
             game::MapEvent ev;
             game::from_json(jo["event"], ev);

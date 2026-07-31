@@ -8,8 +8,10 @@ uniform mat4 u_model;
 uniform mat4 u_view_proj;
 
 out vec4 v_color;
+out vec2 v_uv;
 
 void main() {
     v_color = a_color;
+    v_uv = a_uv;
     gl_Position = u_view_proj * u_model * vec4(a_position, 1.0);
 }

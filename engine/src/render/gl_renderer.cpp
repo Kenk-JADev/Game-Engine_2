@@ -6,6 +6,7 @@
 #if defined(AETHER_WITH_OPENGL)
 
 #include <aether/core/logger.hpp>
+#include <aether/res/resource_manager.hpp>
 
 #include <glad/glad.h>
 
@@ -39,6 +40,11 @@ GlRenderer::~GlRenderer() {
         for (auto& m : lods) destroy_mesh_gpu(m);
     }
     gpu_meshes_.clear();
+    for (auto& [tex, id] : gpu_textures_) {
+        (void)tex;
+        if (id) glDeleteTextures(1, &id);
+    }
+    gpu_textures_.clear();
     if (prog_unlit_) glDeleteProgram(prog_unlit_);
     if (prog_lit_) glDeleteProgram(prog_lit_);
 }
@@ -115,6 +121,37 @@ void GlRenderer::destroy_mesh_gpu(GlMeshGpu& m) {
     if (m.vbo) glDeleteBuffers(1, &m.vbo);
     if (m.vao) glDeleteVertexArrays(1, &m.vao);
     m = {};
+}
+
+void GlRenderer::upload_texture(const res::TextureData& tex) {
+    if (!ready_ || tex.pixels.empty() || tex.width <= 0 || tex.height <= 0) {
+        return;
+    }
+    auto it = gpu_textures_.find(&tex);
+    if (it != gpu_textures_.end()) {
+        return; // bereits hochgeladen
+    }
+
+    GLuint id = 0;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D, id);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    const GLenum fmt = tex.channels >= 4 ? GL_RGBA : GL_RGB;
+    const GLint internal = tex.channels >= 4 ? GL_RGBA8 : GL_RGB8;
+    glTexImage2D(GL_TEXTURE_2D, 0, internal, tex.width, tex.height, 0, fmt,
+                 GL_UNSIGNED_BYTE, tex.pixels.data());
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    gpu_textures_.emplace(&tex, id);
+    ++stats_.textures_uploaded;
+    core::log_debug("Renderer", "texture uploaded: " + tex.name + " (" +
+                                    std::to_string(tex.width) + "x" +
+                                    std::to_string(tex.height) + ")");
 }
 
 void GlRenderer::upload_mesh(Mesh& mesh) {
@@ -235,6 +272,8 @@ void GlRenderer::ensure_default_shaders() {
             loc_light_dir_ = glGetUniformLocation(prog_lit_, "u_light_dir");
             loc_light_color_ = glGetUniformLocation(prog_lit_, "u_light_color");
             loc_ambient_ = glGetUniformLocation(prog_lit_, "u_ambient");
+            loc_tex_ = glGetUniformLocation(prog_lit_, "u_tex");
+            loc_has_tex_ = glGetUniformLocation(prog_lit_, "u_has_tex");
         }
     }
 }
@@ -251,6 +290,14 @@ void GlRenderer::backend_draw_items(const Camera& camera,
     const u32 prog = prog_lit_ ? prog_lit_ : prog_unlit_;
     if (!prog) return;
     bind_program(prog);
+
+    // Textur-Sampler auf Einheit 0 festlegen (einmal pro Frame)
+    if (prog == prog_lit_) {
+        if (loc_tex_ >= 0) glUniform1i(loc_tex_, 0);
+    } else {
+        const i32 u_tex = glGetUniformLocation(prog, "u_tex");
+        if (u_tex >= 0) glUniform1i(u_tex, 0);
+    }
 
     if (prog == prog_lit_) {
         if (loc_vp_ >= 0) glUniformMatrix4fv(loc_vp_, 1, GL_FALSE, glm::value_ptr(vp));
@@ -313,6 +360,24 @@ void GlRenderer::backend_draw_items(const Camera& camera,
             glDepthMask(GL_TRUE);
         }
 
+        // Textur binden (lazy upload beim ersten Gebrauch)
+        GLuint tex_id = 0;
+        if (item.texture && !item.texture->pixels.empty()) {
+            upload_texture(*item.texture);
+            const auto tit = gpu_textures_.find(item.texture.get());
+            if (tit != gpu_textures_.end()) {
+                tex_id = tit->second;
+            }
+        }
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, tex_id);
+        if (prog == prog_lit_) {
+            if (loc_has_tex_ >= 0) glUniform1i(loc_has_tex_, tex_id ? 1 : 0);
+        } else {
+            const i32 u_has = glGetUniformLocation(prog, "u_has_tex");
+            if (u_has >= 0) glUniform1i(u_has, tex_id ? 1 : 0);
+        }
+
         glBindVertexArray(gpu.vao);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(gpu.index_count), GL_UNSIGNED_INT,
                        nullptr);
@@ -320,10 +385,15 @@ void GlRenderer::backend_draw_items(const Camera& camera,
 
         stats_.drawn += 1;
         stats_.triangles += gpu.index_count / 3;
+        if (tex_id) {
+            ++stats_.textured_draws;
+        }
         if (item.lod_level < Mesh::kMaxLods) {
             stats_.lod_histogram[item.lod_level] += 1;
         }
     }
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
     glDepthMask(GL_TRUE);
     gl_debug_clear();
 }

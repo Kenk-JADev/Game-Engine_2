@@ -88,6 +88,7 @@ void Renderer::build_draw_list(const Camera& camera,
         item.distance = dist;
         item.model = model;
         item.world_bounds = world_bounds;
+        item.texture = r.texture;
         item.transparent = r.material.transparent;
         out.push_back(item);
     }

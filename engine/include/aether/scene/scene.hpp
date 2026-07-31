@@ -19,6 +19,10 @@
 #include <string>
 #include <vector>
 
+namespace aether::res {
+struct TextureData;
+}
+
 namespace aether::scene {
 
 enum class ObjectType {
@@ -38,6 +42,8 @@ struct SceneObject {
     render::Transform transform{};
     std::shared_ptr<render::Mesh> mesh;
     render::Material material = render::Material::make_default();
+    std::shared_ptr<res::TextureData> texture; ///< optionale Albedo-Textur (geladen)
+    std::string texture_path;                  ///< logischer Pfad (JSON)
     bool visible = true;
     u32 collision_id = 0;
     std::optional<game::MapEvent> map_event;

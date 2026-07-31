@@ -82,7 +82,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 |---------|--------|
 | Core | Logger, Time, Config, ThreadPool, EventBus, EngineContext |
 | Window | Null + GLFW (optional) |
-| Renderer | Null + OpenGL 3.3/GLAD (optional), Culling, LOD, GLSL 330 |
+| Renderer | Null + OpenGL 3.3/GLAD (optional), Culling, LOD, GLSL 330, **Texturen** (PNG/JPG → GPU, Mipmaps) |
 | Input | RPG-Actions (confirm/cancel/WASD…) |
 | Audio | BGM/BGS/ME/SE – Null + **miniaudio** |
 | Resources | VFS, Cache, JSON, **stb_image**, OBJ-Loader, **eigener FBX-Reader** (ASCII + binär 7.x) |

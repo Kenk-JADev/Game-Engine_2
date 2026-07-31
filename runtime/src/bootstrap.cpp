@@ -83,6 +83,7 @@ struct RuntimeState {
     game::GameContext gctx;
     render::Camera camera;
     u32 map_id = 1;
+    res::ResourceManager* resources = nullptr; ///< gesetzt in run_game
     i32 playtime = 0;
     f64 playtime_accum = 0.0;
     bool map_active = false;
@@ -128,7 +129,7 @@ bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
                    const render::Vec3* override_pos) {
     const auto map_file =
         game::map_path_for_id(rs.project.root_dir / rs.project.maps_path, map_id);
-    auto map = game::load_map(map_file, nullptr, renderer);
+    auto map = game::load_map(map_file, rs.resources, renderer);
     if (!map.scene) {
         return false;
     }
@@ -593,6 +594,7 @@ int run_game(const RuntimeOptions& options) {
     rs.saves = game::SaveSystem(rs.project.root_dir / "saves");
 
     res::ResourceManager resources(&ctx->thread_pool());
+    rs.resources = &resources;
     resources.mount("data", rs.project.root_dir / rs.project.data_path);
     resources.mount("maps", rs.project.root_dir / rs.project.maps_path);
     resources.mount("graphics", rs.project.root_dir / rs.project.graphics_path);

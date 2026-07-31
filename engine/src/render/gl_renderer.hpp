@@ -29,6 +29,7 @@ public:
     void begin_frame() override;
     void end_frame() override;
     void upload_mesh(Mesh& mesh) override;
+    void upload_texture(const res::TextureData& tex) override;
     Result<void> compile_shader(ShaderProgram& program) override;
 
 protected:
@@ -55,9 +56,13 @@ private:
     i32 loc_light_dir_ = -1;
     i32 loc_light_color_ = -1;
     i32 loc_ambient_ = -1;
+    i32 loc_tex_ = -1;
+    i32 loc_has_tex_ = -1;
 
     // mesh pointer identity → lod gpu
     std::unordered_map<const Mesh*, std::vector<GlMeshGpu>> gpu_meshes_;
+    // TextureData pointer → GL-Textur (lazy beim ersten Zeichnen)
+    std::unordered_map<const res::TextureData*, u32> gpu_textures_;
 };
 
 } // namespace aether::render

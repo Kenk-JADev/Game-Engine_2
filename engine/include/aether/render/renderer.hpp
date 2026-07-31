@@ -79,6 +79,12 @@ public:
     virtual void upload_mesh(Mesh& mesh) = 0;
 
     /**
+     * @brief Textur auf die GPU übertragen (No-Op im Null-Backend).
+     *        Wird beim ersten Zeichnen automatisch ausgeführt.
+     */
+    virtual void upload_texture(const res::TextureData& tex) = 0;
+
+    /**
      * @brief Shader kompilieren/laden (Null: markiert ready ohne GPU).
      */
     virtual Result<void> compile_shader(ShaderProgram& program) = 0;

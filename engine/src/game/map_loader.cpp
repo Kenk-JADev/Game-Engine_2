@@ -137,12 +137,30 @@ std::unique_ptr<scene::Scene> create_default_map(const std::string& name,
     return sc;
 }
 
-MapLoadResult load_map(const fs::path& map_file, res::ResourceManager* /*resources*/,
+void attach_textures(scene::Scene& sc, res::ResourceManager& resources) {
+    for (auto& o : sc.objects()) {
+        if (o.texture_path.empty()) {
+            continue;
+        }
+        auto tex = resources.load_texture(o.texture_path);
+        if (tex) {
+            o.texture = tex.value();
+            core::log_debug("Map", "texture '" + o.texture_path + "' -> " + o.name);
+        } else {
+            core::log_warn("Map", "texture load failed: " + o.texture_path);
+        }
+    }
+}
+
+MapLoadResult load_map(const fs::path& map_file, res::ResourceManager* resources,
                        render::Renderer* renderer) {
     MapLoadResult out;
     std::error_code ec;
     if (!fs::exists(map_file, ec)) {
         out.scene = create_default_map("Map", renderer);
+        if (resources) {
+            attach_textures(*out.scene, *resources);
+        }
         out.ok = true;
         out.message = "Default map created (file missing)";
         core::log_info("Map", out.message + ": " + map_file.string());
@@ -154,6 +172,9 @@ MapLoadResult load_map(const fs::path& map_file, res::ResourceManager* /*resourc
         in >> j;
         out.scene = scene::Scene::create_from_json(j);
         assign_default_meshes(*out.scene, renderer);
+        if (resources) {
+            attach_textures(*out.scene, *resources);
+        }
         out.scene->bake_navigation(10.0f, 1.0f);
         out.ok = true;
         out.message = "Loaded " + map_file.string();

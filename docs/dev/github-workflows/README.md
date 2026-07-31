@@ -1,7 +1,11 @@
-# GitHub Actions Workflows (manuell aktivieren)
+# GitHub Actions Workflows
 
-Die Arena-/GitHub-App darf **keine** Dateien unter `.github/workflows/` pushen
-(`workflows`-Permission fehlt). Deshalb liegen die fertigen YAMLs hier.
+Aktuell aktiv in `.github/workflows/`:
+- `ci-build.yml` – CI (Linux Debug/Release, Linux Headless, Windows, macOS)
+- `release.yml` – Release-Pakete bei Tags `v*`
+
+Die fertigen YAMLs liegen zusätzlich unter `docs/dev/github-workflows/`
+(Referenz-Kopie, Stand des letzten Updates).
 
 ## Aktivierung (einmalig)
 

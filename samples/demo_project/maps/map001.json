@@ -16,7 +16,8 @@
         1
       ],
       "visible": true,
-      "mesh": "plane"
+      "mesh": "plane",
+      "texture": "graphics/textures/checker.png"
     },
     {
       "id": 2,
@@ -66,13 +67,13 @@
               {
                 "type": "message",
                 "params": {
-                  "text": "Willkommen in Aether Demo! Ich bin der \u00c4lteste."
+                  "text": "Willkommen in Aether Demo! Ich bin der Älteste."
                 }
               },
               {
                 "type": "message",
                 "params": {
-                  "text": "Im Osten lauern Schleime. Dr\u00fccke Bild-Ab f\u00fcr einen Testkampf."
+                  "text": "Im Osten lauern Schleime. Drücke Bild-Ab für einen Testkampf."
                 }
               },
               {
@@ -128,7 +129,7 @@
                       {
                         "type": "shop",
                         "params": {
-                          "name": "Dorfh\u00e4ndler",
+                          "name": "Dorfhändler",
                           "items": [
                             1
                           ]
@@ -251,7 +252,7 @@
               {
                 "type": "shop",
                 "params": {
-                  "name": "Wanderh\u00e4ndler",
+                  "name": "Wanderhändler",
                   "items": [
                     1
                   ]

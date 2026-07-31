@@ -295,6 +295,7 @@ Sinks: Konsole, Datei (`logs/aether_YYYYMMDD.log`), optional Editor-Panel.
 | 23 | glTF/Script-IDE/Undo | ✅ |
 | 24 | FBX-Import | ✅ eigener Reader (ASCII + binär 7.x) |
 | 25 | Ruby-Host-API | ✅ echte Engine-Bindings |
+| 26 | Textur-Pipeline | ✅ PNG/JPG → GPU (stb, GL-Upload, Shader-Sampler) |
 
 ---
 

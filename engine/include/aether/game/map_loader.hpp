@@ -47,4 +47,10 @@ struct MapLoadResult {
 [[nodiscard]] std::filesystem::path map_path_for_id(const std::filesystem::path& maps_dir,
                                                    u32 map_id);
 
+/**
+ * @brief Lädt Texturen aller Objekte mit `texture_path` über den ResourceManager.
+ *        Fehlende/fehlerhafte Texturen werden geloggt und ignoriert.
+ */
+void attach_textures(scene::Scene& scene, res::ResourceManager& resources);
+
 } // namespace aether::game

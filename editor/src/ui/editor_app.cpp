@@ -565,6 +565,23 @@ void EditorApp::draw_map_tab() {
             }
         }
         ImGui::Checkbox("Sichtbar", &obj->visible);
+        {
+            char tex[256];
+            std::snprintf(tex, sizeof(tex), "%s", obj->texture_path.c_str());
+            if (ImGui::InputText("Textur (log. Pfad)", tex, sizeof(tex))) {
+                obj->texture_path = tex;
+                obj->texture.reset();
+                if (tex[0] && resources_) {
+                    if (auto r = resources_->load_texture(tex)) {
+                        obj->texture = r.value();
+                    } else {
+                        status_message_ = "Textur nicht gefunden: " + std::string(tex);
+                    }
+                }
+            }
+            ImGui::TextWrapped(
+                "z. B. graphics/textures/checker.png – Reload beim nächsten Laden.");
+        }
         ImGui::Text("Kollision auto (#%u)", obj->collision_id);
         if (obj->map_event && ImGui::Button("Events")) tab_ = EditorTab::Events;
         if (ImGui::Button("Löschen")) {

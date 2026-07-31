@@ -14,6 +14,7 @@ aether_add_unit_test(aether_smoke_test  unit/smoke_test.cpp)
 aether_add_unit_test(aether_core_test   unit/core_test.cpp)
 aether_add_unit_test(aether_window_test unit/window_test.cpp)
 aether_add_unit_test(aether_render_test unit/render_test.cpp)
+aether_add_unit_test(aether_texture_test unit/texture_render_test.cpp)
 aether_add_unit_test(aether_input_test  unit/input_test.cpp)
 aether_add_unit_test(aether_audio_test  unit/audio_test.cpp)
 aether_add_unit_test(aether_res_test     unit/res_test.cpp)
@@ -38,6 +39,15 @@ target_include_directories(aether_highlighter_test PRIVATE
 target_link_libraries(aether_highlighter_test PRIVATE aether::engine aether::shared)
 aether_apply_common_options(aether_highlighter_test)
 add_test(NAME aether_highlighter_test COMMAND aether_highlighter_test)
+
+add_executable(aether_export_test unit/export_test.cpp
+    ${CMAKE_SOURCE_DIR}/editor/src/export/exporter.cpp)
+target_include_directories(aether_export_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/editor/src
+    ${CMAKE_SOURCE_DIR}/engine/include)
+target_link_libraries(aether_export_test PRIVATE aether::engine aether::shared)
+aether_apply_common_options(aether_export_test)
+add_test(NAME aether_export_test COMMAND aether_export_test)
 
 # Runtime smoke (headless, few frames) – uses samples if present
 add_test(

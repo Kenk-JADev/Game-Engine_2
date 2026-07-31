@@ -43,6 +43,13 @@ void NullRenderer::upload_mesh(Mesh& mesh) {
     mesh.set_gpu_handle(1); // dummy non-zero
 }
 
+void NullRenderer::upload_texture(const res::TextureData& tex) {
+    if (!uploaded_.insert(&tex).second) {
+        return; // bereits „hochgeladen“ (wie GL-Cache)
+    }
+    ++stats_.textures_uploaded; // Headless: nur zählen
+}
+
 Result<void> NullRenderer::compile_shader(ShaderProgram& program) {
     program.set_ready(true);
     program.set_gpu_id(1);
@@ -59,6 +66,9 @@ void NullRenderer::backend_draw_items(const Camera& /*camera*/,
         const auto& lod = item.source->mesh->lod(item.lod_level);
         stats_.drawn += 1;
         stats_.triangles += static_cast<u32>(lod.indices.size() / 3);
+        if (item.texture) {
+            ++stats_.textured_draws;
+        }
         if (item.lod_level < Mesh::kMaxLods) {
             stats_.lod_histogram[item.lod_level] += 1;
         }
