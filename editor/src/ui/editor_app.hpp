@@ -13,8 +13,13 @@
 #include "scripts/script_debugger.hpp"
 #include "ui/undo_stack.hpp"
 
+#if defined(AETHER_WITH_TEXT_EDITOR)
+#include "TextEditor.h"
+#endif
+
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace aether::editor {
@@ -140,6 +145,12 @@ private:
     char script_complete_prefix_[64]{};
     ScriptDebugger debugger_;
     int bp_line_input_ = 1;
+#if defined(AETHER_WITH_TEXT_EDITOR)
+    std::unique_ptr<TextEditor> script_editor_;
+    bool script_complete_open_ = false;
+    std::vector<std::string> script_completions_;
+    std::unordered_set<int> script_bps_; ///< Breakpoints (0-basiert, Editor)
+#endif
 
     // Stats
     u64 frame_ = 0;

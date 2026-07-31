@@ -41,6 +41,17 @@ target_link_libraries(aether_highlighter_test PRIVATE aether::engine aether::sha
 aether_apply_common_options(aether_highlighter_test)
 add_test(NAME aether_highlighter_test COMMAND aether_highlighter_test)
 
+add_executable(aether_ruby_lang_test unit/ruby_language_test.cpp
+    ${CMAKE_SOURCE_DIR}/editor/src/scripts/ruby_language.cpp)
+target_include_directories(aether_ruby_lang_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/editor/src
+    ${CMAKE_SOURCE_DIR}/engine/include
+    ${CMAKE_SOURCE_DIR}/third_party/ImGuiColorTextEdit
+    ${CMAKE_SOURCE_DIR}/third_party/imgui)
+target_link_libraries(aether_ruby_lang_test PRIVATE aether::engine aether::shared)
+aether_apply_common_options(aether_ruby_lang_test)
+add_test(NAME aether_ruby_lang_test COMMAND aether_ruby_lang_test)
+
 add_executable(aether_export_test unit/export_test.cpp
     ${CMAKE_SOURCE_DIR}/editor/src/export/exporter.cpp)
 target_include_directories(aether_export_test PRIVATE

@@ -5,6 +5,7 @@
 #include "editor_app.hpp"
 #include "export/exporter.hpp"
 #include "scripts/script_highlighter.hpp"
+#include "scripts/ruby_language.hpp"
 #include "testplay/testplay_runner.hpp"
 
 #include <cmath>
@@ -61,6 +62,11 @@ EditorApp::EditorApp(EditorAppConfig cfg) : cfg_(std::move(cfg)) {
                       cfg_.project_path.string().c_str());
     }
     std::snprintf(export_path_buf_, sizeof(export_path_buf_), "%s", "export/MyGame");
+#if defined(AETHER_WITH_TEXT_EDITOR)
+    script_editor_ = std::make_unique<TextEditor>();
+    script_editor_->SetLanguageDefinition(ruby_language_definition());
+    script_editor_->SetShowWhitespaces(false);
+#endif
 }
 
 EditorApp::~EditorApp() {
@@ -976,121 +982,164 @@ void EditorApp::draw_scripts_tab() {
 
     ImGui::Text("Skript: %s", script_path_.c_str());
     ImGui::TextWrapped(
-        "Ruby nur für Spiellogik. Syntax-Highlighting in der Vorschau. "
-        "Autocomplete über Präfix + Liste.");
+        "Ruby nur für Spiellogik. Inline-Syntax-Highlighting, Breakpoints im "
+        "Editor-Rand, Autocomplete mit Strg+Leertaste, Hot-Reload.");
 
     if (ImGui::Button("Laden")) load_script_buffer();
     ImGui::SameLine();
     if (ImGui::Button("Speichern")) save_script_buffer();
     ImGui::SameLine();
     if (ImGui::Button("Ausführen / Hot-Reload")) reload_scripts();
+    ImGui::SameLine();
     {
         bool en = debugger_.enabled();
-        if (ImGui::Checkbox("Breakpoints", &en)) {
+        if (ImGui::Checkbox("Debug-Modus", &en)) {
             debugger_.set_enabled(en);
+            if (en && script_editor_) {
+                // Editor-Breakpoints in den Debugger übernehmen (1-basiert)
+                debugger_.clear_breakpoints();
+                for (const int bp : script_bps_) {
+                    debugger_.add_breakpoint(bp + 1);
+                }
+            }
         }
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(70);
-        ImGui::InputInt("##bpl", &bp_line_input_);
+        if (ImGui::Button("BP am Cursor") && script_editor_) {
+            const int line = script_editor_->GetCursorPosition().mLine;
+            if (script_bps_.count(line) > 0) {
+                script_bps_.erase(line);
+            } else {
+                script_bps_.insert(line);
+            }
+            script_editor_->SetBreakpoints(script_bps_);
+        }
         ImGui::SameLine();
-        if (ImGui::Button("BP+")) debugger_.add_breakpoint(bp_line_input_);
-        ImGui::SameLine();
-        if (ImGui::Button("BP-")) debugger_.remove_breakpoint(bp_line_input_);
-        ImGui::SameLine();
-        if (ImGui::Button("Debug Run") && ruby_) {
+        if (ImGui::Button("Debug Run") && ruby_ && script_editor_) {
             save_script_buffer();
             debugger_.set_enabled(true);
+            debugger_.clear_breakpoints();
+            for (const int bp : script_bps_) {
+                debugger_.add_breakpoint(bp + 1);
+            }
             auto r = debugger_.run_file(*ruby_, script_path_);
             script_output_ =
-                r.ok ? ("Debug: " + r.value + " @" + std::to_string(debugger_.current_line()))
+                r.ok ? ("Debug: " + r.value + " @Zeile " + std::to_string(debugger_.current_line()))
                      : r.error;
             for (const auto& l : debugger_.log()) {
                 script_output_ += "\n";
                 script_output_ += l;
             }
+            if (debugger_.paused()) {
+                script_editor_->SetCursorPosition({debugger_.current_line() - 1, 0});
+            }
         }
         ImGui::SameLine();
-        if (ImGui::Button("Step") && debugger_.paused() && ruby_) {
+        if (ImGui::Button("Step") && debugger_.paused() && ruby_ && script_editor_) {
             auto r = debugger_.step(*ruby_);
             script_output_ =
-                r.ok ? ("Step @" + std::to_string(debugger_.current_line())) : r.error;
+                r.ok ? ("Step @Zeile " + std::to_string(debugger_.current_line())) : r.error;
+            script_editor_->SetCursorPosition({debugger_.current_line() - 1, 0});
         }
         ImGui::SameLine();
-        if (ImGui::Button("Continue") && debugger_.paused() && ruby_) {
+        if (ImGui::Button("Continue") && debugger_.paused() && ruby_ && script_editor_) {
             auto r = debugger_.cont(*ruby_);
             script_output_ = r.ok ? ("Cont: " + r.value) : r.error;
-        }
-    }
-
-    ImGui::BeginChild("script_edit", ImVec2(0, -220), true);
-    ImGui::InputTextMultiline("##code", script_buffer_.data(), script_buffer_.size(),
-                              ImVec2(-1, -1), ImGuiInputTextFlags_AllowTabInput);
-    ImGui::EndChild();
-
-    ImGui::BeginChild("script_side", ImVec2(0, 210), true);
-    ImGui::Columns(3, nullptr, true);
-    ImGui::TextUnformatted("Highlight-Vorschau");
-    ImGui::BeginChild("hl", ImVec2(0, 160), true);
-    {
-        std::string src(script_buffer_.data());
-        std::size_t line_start = 0;
-        int lines_shown = 0;
-        while (line_start <= src.size() && lines_shown < 40) {
-            std::size_t line_end = src.find('\n', line_start);
-            if (line_end == std::string::npos) line_end = src.size();
-            const auto line = std::string_view(src).substr(line_start, line_end - line_start);
-            auto tokens = tokenize_ruby_line(line);
-            for (std::size_t ti = 0; ti < tokens.size(); ++ti) {
-                const auto& tk = tokens[ti];
-                const auto c = color_for(tk.kind);
-                if (ti > 0) ImGui::SameLine(0, 0);
-                ImGui::TextColored(ImVec4(c.r / 255.f, c.g / 255.f, c.b / 255.f, 1), "%s",
-                                   tk.text.c_str());
-            }
-            if (tokens.empty()) {
-                ImGui::TextUnformatted(" ");
-            }
-            if (line_end == src.size()) break;
-            line_start = line_end + 1;
-            ++lines_shown;
-        }
-    }
-    ImGui::EndChild();
-
-    ImGui::NextColumn();
-    ImGui::TextUnformatted("Autocomplete");
-    ImGui::InputText("Präfix", script_complete_prefix_, sizeof(script_complete_prefix_));
-    auto comps = ruby_api_completions(script_complete_prefix_);
-    ImGui::BeginChild("ac", ImVec2(0, 160), true);
-    for (const auto& c : comps) {
-        if (ImGui::Selectable(c.c_str())) {
-            // append to buffer end (simple)
-            std::string cur(script_buffer_.data());
-            if (!cur.empty() && cur.back() != '\n') cur.push_back('\n');
-            cur += c;
-            cur.push_back('\n');
-            if (cur.size() + 1 < script_buffer_.size()) {
-                std::memcpy(script_buffer_.data(), cur.c_str(), cur.size() + 1);
+            if (debugger_.paused()) {
+                script_editor_->SetCursorPosition({debugger_.current_line() - 1, 0});
             }
         }
     }
+
+    // --- Editor (Inline-Highlighting + Breakpoints) -------------------------
+    ImGui::BeginChild("script_edit", ImVec2(0, -190), true);
+    if (script_editor_) {
+        script_editor_->Render("RubyEditor", ImVec2(0, 0), true);
+
+        // Autocomplete-Trigger: Strg+Leertaste oder Präfix "Module." am Cursor
+        const auto cur = script_editor_->GetCursorPosition();
+        std::string line_text;
+        const auto lines = script_editor_->GetTextLines();
+        if (cur.mLine >= 0 && cur.mLine < static_cast<int>(lines.size())) {
+            line_text = lines[static_cast<usize>(cur.mLine)];
+        }
+        std::string prefix;
+        for (int i = cur.mColumn - 1; i >= 0; --i) {
+            const char c = line_text[static_cast<usize>(i)];
+            if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '.' ||
+                c == ':') {
+                prefix.insert(prefix.begin(), c);
+            } else {
+                break;
+            }
+        }
+        const bool ctrl_space =
+            ImGui::IsKeyPressed(ImGuiKey_Space) && (ImGui::GetIO().KeyCtrl);
+        const bool dot_prefix = prefix.find('.') != std::string::npos && prefix.size() > 1;
+        if (ctrl_space || (dot_prefix && !script_complete_open_)) {
+            script_complete_open_ = true;
+            script_completions_ = ruby_api_completions(prefix);
+        }
+        if (script_complete_open_) {
+            const ImVec2 wp = ImGui::GetWindowPos();
+            ImGui::SetNextWindowPos(ImVec2(wp.x + 40, wp.y + 120));
+            ImGui::Begin("##autocomplete", nullptr,
+                         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize |
+                             ImGuiWindowFlags_NoMove);
+            ImGui::TextUnformatted("Autovervollständigung");
+            ImGui::Separator();
+            if (ImGui::BeginListBox("##aclist", ImVec2(320, 0))) {
+                for (const auto& c : script_completions_) {
+                    if (ImGui::Selectable(c.c_str())) {
+                        // Präfix vor Cursor als Selektion markieren → InsertText ersetzt
+                        auto c2 = script_editor_->GetCursorPosition();
+                        int st = c2.mColumn;
+                        while (st > 0) {
+                            const char cc =
+                                lines[static_cast<usize>(c2.mLine)][static_cast<usize>(st - 1)];
+                            if (std::isalnum(static_cast<unsigned char>(cc)) || cc == '_' ||
+                                cc == '.' || cc == ':') {
+                                --st;
+                            } else {
+                                break;
+                            }
+                        }
+                        if (st < c2.mColumn) {
+                            script_editor_->SetSelection(
+                                {c2.mLine, st}, {c2.mLine, c2.mColumn});
+                        }
+                        script_editor_->InsertText(c);
+                        script_complete_open_ = false;
+                    }
+                }
+                ImGui::EndListBox();
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                script_complete_open_ = false;
+            }
+            ImGui::End();
+        }
+    }
     ImGui::EndChild();
 
-    ImGui::NextColumn();
+    // --- Untere Leiste: API-Doku + Ausgabe -----------------------------------
+    ImGui::BeginChild("script_bottom", ImVec2(0, 180), true);
+    ImGui::Columns(2, nullptr, true);
     ImGui::TextUnformatted("API-Dokumentation");
-    ImGui::BeginChild("apidoc", ImVec2(0, 160), true);
+    ImGui::BeginChild("apidoc", ImVec2(0, 0), true);
     for (const auto& d : ruby_api_doc_lines()) {
         ImGui::BulletText("%s", d.c_str());
     }
     ImGui::EndChild();
-    ImGui::Columns(1);
-
-    ImGui::Separator();
+    ImGui::NextColumn();
     ImGui::TextUnformatted("Ausgabe");
+    ImGui::BeginChild("output", ImVec2(0, 0), true);
     ImGui::TextWrapped("%s", script_output_.c_str());
+    ImGui::EndChild();
+    ImGui::Columns(1);
     ImGui::EndChild();
 #endif
 }
+
 
 void EditorApp::draw_testplay_tab() {
 #if defined(AETHER_WITH_IMGUI)
@@ -1424,10 +1473,23 @@ void EditorApp::load_script_buffer() {
     if (txt.empty()) txt = "# main.rb\n";
     script_buffer_.assign(txt.begin(), txt.end());
     script_buffer_.resize(std::max<size_t>(script_buffer_.size() + 1, 64 * 1024), '\0');
+#if defined(AETHER_WITH_TEXT_EDITOR)
+    if (script_editor_) {
+        script_editor_->SetText(txt);
+        script_editor_->SetCursorPosition({0, 0});
+    }
+#endif
 }
 
 void EditorApp::save_script_buffer() {
     if (!project_open_ || script_buffer_.empty()) return;
+#if defined(AETHER_WITH_TEXT_EDITOR)
+    if (script_editor_) {
+        const std::string txt = script_editor_->GetText();
+        script_buffer_.assign(txt.begin(), txt.end());
+        script_buffer_.resize(script_buffer_.size() + 1, '\0');
+    }
+#endif
     write_text_file(script_path_, std::string(script_buffer_.data()));
     status_message_ = "Skript gespeichert";
 }

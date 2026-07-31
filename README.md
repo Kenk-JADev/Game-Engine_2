@@ -109,7 +109,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Runtime | Titel → Map → Menü/Dialog/Kampf/Save |
 | glTF/GLB | cgltf-Loader |
 | FBX | Eigener Reader (ASCII + binär 7.x), kein externes SDK |
-| Script-IDE | Highlight-Vorschau, Autocomplete, API-Doku |
+| Script-IDE | **Inline-Highlighting**, Breakpoints am Editor, Autocomplete-Popup, API-Doku |
 | Undo | Karteneditor Snapshot-Undo/Redo |
 | Handbuch | docs/user/HANDBUCH.md |
 | Demo | 2 Karten, WAV-Audio, Portale, NPCs, **Sprite-Texturen** (Hero/Elder/Checker) |
@@ -125,6 +125,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 - `third_party/stb` – stb_image  
 - `third_party/miniaudio` – Audio  
 - `third_party/imgui` – Editor-UI  
+- `third_party/ImGuiColorTextEdit` – Code-Editor (Inline-Highlighting, Breakpoints)  
 - `third_party/mruby-src` – für künftigen mruby-Build (benötigt Host-Ruby)
 
 FetchContent: nlohmann/json, glm, optional GLFW.

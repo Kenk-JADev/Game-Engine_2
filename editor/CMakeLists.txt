@@ -8,6 +8,7 @@ set(AETHER_EDITOR_SOURCES
     src/ui/undo_stack.cpp
     src/scripts/script_highlighter.cpp
     src/scripts/script_debugger.cpp
+    src/scripts/ruby_language.cpp
     src/export/exporter.cpp
     src/testplay/testplay_runner.cpp
 )
@@ -29,6 +30,10 @@ target_link_libraries(AetherEditor
 # ImGui UI when available
 if(TARGET aether_imgui)
     target_link_libraries(AetherEditor PRIVATE aether_imgui)
+    if(TARGET aether_imgui_texteditor)
+        target_link_libraries(AetherEditor PRIVATE aether_imgui_texteditor)
+        target_compile_definitions(AetherEditor PRIVATE AETHER_WITH_TEXT_EDITOR=1)
+    endif()
     target_compile_definitions(AetherEditor PRIVATE AETHER_WITH_IMGUI=1)
     if(COMMAND aether_add_imgui_backends)
         aether_add_imgui_backends()

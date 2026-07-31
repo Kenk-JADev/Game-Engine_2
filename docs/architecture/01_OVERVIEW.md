@@ -300,6 +300,7 @@ Sinks: Konsole, Datei (`logs/aether_YYYYMMDD.log`), optional Editor-Panel.
 | 28 | Event-Animationen & Kamera | ✅ PlayAnimation (Skalen-Puls), ControlCamera (Offset/Position/Shake) |
 | 29 | Wetter-Partikel | ✅ Regen/Sturm/Schnee/Nebel als sichtbare Partikel |
 | 30 | Echtes Testspiel | ✅ Runtime-Subprozess (F5/Tab) + Headless-Smoke |
+| 31 | Script-IDE | ✅ Inline-Highlighting, Breakpoints, Autocomplete-Popup |
 
 ---
 

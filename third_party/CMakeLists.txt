@@ -27,6 +27,19 @@ if(NOT MSVC)
 endif()
 set_target_properties(aether_imgui PROPERTIES FOLDER "third_party" POSITION_INDEPENDENT_CODE ON)
 
+# ImGuiColorTextEdit – Code-Editor-Widget (Syntax-Highlighting, Breakpoints)
+add_library(aether_imgui_texteditor STATIC
+    ImGuiColorTextEdit/TextEditor.cpp
+)
+target_include_directories(aether_imgui_texteditor PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImGuiColorTextEdit
+)
+target_link_libraries(aether_imgui_texteditor PUBLIC aether_imgui)
+if(NOT MSVC)
+    target_compile_options(aether_imgui_texteditor PRIVATE -Wno-conversion -Wno-shadow -Wno-unused-parameter)
+endif()
+set_target_properties(aether_imgui_texteditor PROPERTIES FOLDER "third_party" POSITION_INDEPENDENT_CODE ON)
+
 # Function to add imgui glfw/gl3 backends once glfw target exists
 function(aether_add_imgui_backends)
     if(TARGET aether_imgui_backends)
