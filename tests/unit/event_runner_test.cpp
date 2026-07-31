@@ -87,6 +87,39 @@ int main() {
     CHECK(db.find_class(1) != nullptr);
     CHECK(db.find_enemy(2) != nullptr);
 
+    // Seiten-Bedingungen: Autorun nur wenn Schalter 5 Ein + Variable >= 3
+    {
+        scene::Scene sc2("cond");
+        render::Transform t2;
+        t2.position = {10, 0, 10};
+        auto mesh2 = render::Mesh::create_cube(0.5f);
+        auto id2 = sc2.place(ObjectType::Event, "Cond", mesh2, t2);
+        auto* o2 = sc2.find(id2);
+        CHECK(o2 != nullptr);
+        MapEvent cev;
+        cev.name = "Cond";
+        EventPage cpage;
+        cpage.trigger = EventTrigger::Autorun;
+        cpage.conditions = {{"switch_id", 5}, {"switch_value", true},
+                            {"variable_id", 7}, {"op", ">="}, {"variable_value", 3}};
+        cpage.commands.push_back({EventCommandType::Message, {{"text", "cond"}}, {}});
+        cev.pages.push_back(cpage);
+        o2->map_event = cev;
+
+        GameState cst;
+        MapEventRunner crunner;
+        EventInterpreter cip(&cst);
+        CHECK(!crunner.update(sc2, {0, 0, 0}, 1.0f, cip, cst)); // Bedingung nicht erfüllt
+        cst.set_switch(5, true);
+        EventInterpreter cip2(&cst);
+        CHECK(!crunner.update(sc2, {0, 0, 0}, 1.0f, cip2, cst)); // Variable noch zu klein
+        cst.set_variable(7, 4);
+        EventInterpreter cip3(&cst);
+        CHECK(crunner.update(sc2, {0, 0, 0}, 1.0f, cip3, cst)); // jetzt aktiv
+        cip3.update();
+        CHECK(!cip3.messages().empty() && cip3.messages().front() == "cond");
+    }
+
     // PlayAnimation erzeugt einen Animation-Request (kein No-Op mehr)
     {
         EventInterpreter anim_interp(&st);

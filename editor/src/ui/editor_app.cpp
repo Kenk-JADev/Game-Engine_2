@@ -787,6 +787,77 @@ void EditorApp::draw_events_tab() {
             auto& page = ev.pages[static_cast<usize>(event_page_index_)];
 
             ImGui::Text("Event: %s", ev.name.c_str());
+
+            // --- Seiten-Verwaltung (RPG-Maker-Stil: letzte passende Seite gewinnt) ---
+            ImGui::TextUnformatted("Seiten:");
+            for (int pi = 0; pi < static_cast<int>(ev.pages.size()); ++pi) {
+                if (pi > 0) ImGui::SameLine();
+                char plabel[48];
+                std::snprintf(plabel, sizeof(plabel), "Seite %d##evpage%d", pi + 1, pi);
+                if (ImGui::Button(plabel)) {
+                    event_page_index_ = pi;
+                    event_cmd_index_ = -1;
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("+ Seite")) {
+                ev.pages.push_back({});
+                event_page_index_ = static_cast<int>(ev.pages.size()) - 1;
+                event_cmd_index_ = -1;
+            }
+            if (ev.pages.size() > 1) {
+                ImGui::SameLine();
+                if (ImGui::Button("Seite löschen")) {
+                    ev.pages.erase(ev.pages.begin() + event_page_index_);
+                    event_page_index_ =
+                        std::clamp(event_page_index_, 0, static_cast<int>(ev.pages.size()) - 1);
+                    event_cmd_index_ = -1;
+                }
+            }
+            ImGui::SameLine();
+            ImGui::TextWrapped("(aktiv: letzte Seite, deren Bedingungen erfüllt sind)");
+
+            // Seitenname
+            {
+                char pname[128];
+                std::snprintf(pname, sizeof(pname), "%s", page.name.c_str());
+                if (ImGui::InputText("Seitenname", pname, sizeof(pname))) page.name = pname;
+            }
+
+            // --- Bedingungen (Seite nur aktiv, wenn erfüllt) ---------------------
+            ImGui::TextUnformatted("Bedingungen");
+            {
+                bool has_sw = page.conditions.contains("switch_id");
+                if (ImGui::Checkbox("Schalter-Bedingung", &has_sw)) {
+                    if (!has_sw) page.conditions.erase("switch_id");
+                    else page.conditions["switch_id"] = 1;
+                }
+                if (has_sw) {
+                    int sid = page.conditions.value("switch_id", 1);
+                    bool sv = page.conditions.value("switch_value", true);
+                    if (ImGui::InputInt("Schalter-Nr.", &sid)) page.conditions["switch_id"] = sid;
+                    if (ImGui::Checkbox("Schalter ist Ein", &sv)) page.conditions["switch_value"] = sv;
+                }
+                bool has_var = page.conditions.contains("variable_id");
+                if (ImGui::Checkbox("Variable-Bedingung", &has_var)) {
+                    if (!has_var) page.conditions.erase("variable_id");
+                    else page.conditions["variable_id"] = 1;
+                }
+                if (has_var) {
+                    int vid = page.conditions.value("variable_id", 1);
+                    const char* ops[] = {">=", "==", ">", "<", "<=", "!="};
+                    std::string op = page.conditions.value("op", ">=");
+                    int opi = 0;
+                    for (int oi = 0; oi < 6; ++oi) {
+                        if (op == ops[oi]) opi = oi;
+                    }
+                    int vval = page.conditions.value("variable_value", 0);
+                    if (ImGui::InputInt("Variable-Nr.", &vid)) page.conditions["variable_id"] = vid;
+                    if (ImGui::Combo("Vergleich", &opi, ops, 6)) page.conditions["op"] = ops[opi];
+                    if (ImGui::InputInt("Wert", &vval)) page.conditions["variable_value"] = vval;
+                }
+            }
+
             ImGui::Text("Auslöser:");
             const char* triggers[] = {"Aktionstaste", "Spieler-Touch", "Event-Touch",
                                       "Autorun", "Parallel"};
@@ -797,14 +868,67 @@ void EditorApp::draw_events_tab() {
 
             ImGui::Separator();
             ImGui::TextUnformatted("Befehle");
+            auto cmd_label = [](const game::EventCommand& c) {
+                std::string n;
+                switch (c.type) {
+                case game::EventCommandType::Message: n = "Nachricht"; break;
+                case game::EventCommandType::Choice: n = "Auswahl"; break;
+                case game::EventCommandType::SetSwitch: n = "Schalter"; break;
+                case game::EventCommandType::SetVariable: n = "Variable"; break;
+                case game::EventCommandType::ConditionalBranch: n = "Bedingung"; break;
+                case game::EventCommandType::TransferPlayer: n = "Teleport"; break;
+                case game::EventCommandType::ControlCamera: n = "Kamera"; break;
+                case game::EventCommandType::SetWeather: n = "Wetter"; break;
+                case game::EventCommandType::PlayAnimation: n = "Animation"; break;
+                case game::EventCommandType::StartQuest: n = "Quest starten"; break;
+                case game::EventCommandType::CompleteQuest: n = "Quest abschließen"; break;
+                case game::EventCommandType::Shop: n = "Shop"; break;
+                case game::EventCommandType::Battle: n = "Kampf"; break;
+                case game::EventCommandType::Script: n = "Skript"; break;
+                case game::EventCommandType::Wait: n = "Warten"; break;
+                case game::EventCommandType::Comment: n = "Kommentar"; break;
+                case game::EventCommandType::End: n = "Ende"; break;
+                default: n = game::to_string(c.type); break;
+                }
+                if (c.type == game::EventCommandType::Message) {
+                    n += ": \"" + c.params.value("text", "") + "\"";
+                } else if (c.type == game::EventCommandType::Wait) {
+                    n += " (" + std::to_string(c.params.value("frames", 0)) + " Frames)";
+                } else if (c.type == game::EventCommandType::SetSwitch) {
+                    n += " #" + std::to_string(c.params.value("id", 0));
+                } else if (c.type == game::EventCommandType::SetVariable) {
+                    n += " #" + std::to_string(c.params.value("id", 0)) + " = " +
+                         std::to_string(c.params.value("value", 0));
+                } else if (c.type == game::EventCommandType::TransferPlayer) {
+                    n += " → Karte " + std::to_string(c.params.value("map_id", 0));
+                }
+                return n;
+            };
             for (int ci = 0; ci < static_cast<int>(page.commands.size()); ++ci) {
                 auto& cmd = page.commands[static_cast<usize>(ci)];
                 const bool sel = event_cmd_index_ == ci;
-                std::string label = std::string(game::to_string(cmd.type));
-                if (cmd.type == game::EventCommandType::Message) {
-                    label += ": \"" + cmd.params.value("text", "") + "\"";
-                }
+                const std::string label = cmd_label(cmd);
                 if (ImGui::Selectable(label.c_str(), sel)) event_cmd_index_ = ci;
+                if (sel) {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("▲##up") && ci > 0) {
+                        std::swap(page.commands[static_cast<usize>(ci)],
+                                  page.commands[static_cast<usize>(ci - 1)]);
+                        event_cmd_index_ = ci - 1;
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("▼##down") &&
+                        ci + 1 < static_cast<int>(page.commands.size())) {
+                        std::swap(page.commands[static_cast<usize>(ci)],
+                                  page.commands[static_cast<usize>(ci + 1)]);
+                        event_cmd_index_ = ci + 1;
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("⧉##dup")) {
+                        page.commands.insert(page.commands.begin() + ci + 1, cmd);
+                        event_cmd_index_ = ci + 1;
+                    }
+                }
             }
 
             if (ImGui::Button("Nachricht")) {

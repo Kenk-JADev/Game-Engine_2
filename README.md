@@ -101,7 +101,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Battle | Turn-based Kampf |
 | Quests | QuestLog + Belohnungen |
 | HUD | Status/Dialog/Kampf/Quest-Panels |
-| Events | Choice, Battle, Shop, Weather, Quest, **Animation**, **Kamera**, … |
+| Events | Choice, Battle, Shop, Weather, Quest, Animation, Kamera; Editor: **Seiten + Bedingungen** |
 | Database | actors/enemies/items/skills/system JSON |
 | Plugins | `plugin.json` + `main.rb` |
 | Export | Spielpaket mit Game-Binary |
