@@ -22,9 +22,11 @@ aether::editor::EditorAppConfig parse(int argc, char** argv) {
         } else if (s == "--headless") {
             cfg.headless = true;
             cfg.force_null_window = true;
+            cfg.gui_requested = false;
         } else if (s == "--gui") {
             cfg.headless = false;
             cfg.force_null_window = false;
+            cfg.gui_requested = true;
         } else if ((s == "--max-frames") && i + 1 < argc) {
             cfg.max_frames = std::stoi(argv[++i]);
         } else if (s == "-h" || s == "--help") {

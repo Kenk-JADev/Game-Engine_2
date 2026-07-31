@@ -124,6 +124,18 @@ bool EditorApp::boot() {
         return false;
     }
 
+    // Klare Meldung statt stillem Headless-Lauf, wenn die GUI erwartet wird
+    // (Default) oder --gui gesetzt ist, der Build aber kein GL-Fenster hat.
+    if (cfg_.gui_requested && window_->backend() != window::WindowBackend::Glfw) {
+        core::log_error(
+            "Editor",
+            "GUI requested, but this build has no GLFW/OpenGL window backend "
+            "(NullWindow). Der Editor wurde ohne AETHER_WITH_GLFW/OPENGL gebaut "
+            "oder es gibt kein Display. Bitte mit GLFW+OpenGL bauen (siehe "
+            "README/docs) oder explizit --headless fuer den CLI-Modus verwenden.");
+        return false;
+    }
+
     render::RendererDesc rd;
     if (window_->backend() == window::WindowBackend::Glfw) {
         rd.backend = render::RendererBackend::OpenGL;

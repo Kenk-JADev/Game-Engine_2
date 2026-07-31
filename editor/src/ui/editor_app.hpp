@@ -38,6 +38,7 @@ enum class EditorTab {
 struct EditorAppConfig {
     bool headless = false;
     bool force_null_window = false;
+    bool gui_requested = true; ///< true = GUI erwarten (Default); --headless setzt false
     std::filesystem::path project_path;
     std::filesystem::path create_project;
     bool auto_testplay = false;
