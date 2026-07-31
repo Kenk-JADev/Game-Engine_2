@@ -59,6 +59,12 @@ Release-Tags `v*` → `release.yml` packt Linux/Windows-Archive.
 
 Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 
+### Editor mit GUI (Fenster + ImGui)
+
+Der Editor läuft nur dann mit Fenster/ImGui, wenn der Build **GLFW + OpenGL** enthält
+(siehe `docs/user/EDITOR_GUI.md` – fertige Binaries von GitHub Actions oder
+lokale Build-Flags).
+
 ### Runtime
 
 ```bash
