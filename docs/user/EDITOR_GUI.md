@@ -143,3 +143,23 @@ und `aether-linux-x64` als Download-Anhänge.
 | `AetherEditor.exe` startet und schließt sofort | Im GUI-Modus ohne Display/Desktop (z. B. RDP ohne GPU) → dann `--headless` nutzen oder Xvfb |
 | GLFW-Configure-Fehler `Failed to find wayland-scanner` | bekanntes GLFW-3.4-Problem; der Workflow setzt `GLFW_BUILD_WAYLAND=OFF` bereits |
 | „GUI requested, but this build has no GLFW/OpenGL“ | exakt dieser Fall – siehe Weg 1/2 |
+
+
+---
+
+## Game.exe starten (Runtime)
+
+Die Runtime braucht ein Projekt (project.json). Zwei Wege:
+
+1. **Doppelklick auf Game.exe** – sie sucht `project.json` im selben Ordner
+   (Fallback seit Commit `3b44285`). Ein exportiertes Spiel-Paket enthält
+   `Game.exe` + `project.json` + `data/` + `maps/` + … im selben Ordner –
+   Doppelklick startet das Spiel direkt.
+
+2. **Mit Pfad**:
+   ```
+   Game.exe --project C:\MeinSpiel
+   ```
+
+**Fehlt project.json**, erscheint jetzt eine klare Fehlermeldung (Windows:
+Dialogbox) statt dass das Fenster stumm verschwindet.
