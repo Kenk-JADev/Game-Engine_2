@@ -160,6 +160,14 @@ function(aether_require_mruby)
     if(MSVC)
         set(_mruby_lib "${_mruby_build}/host/lib/libmruby.lib")
     endif()
+    # Beim Build-Time-Download existiert der Quellpfad beim Configure noch
+    # nicht. CMake meldet sonst einen Fehler ('Imported target includes
+    # non-existent path'). Leere Verzeichnisse vorab anlegen.
+    if(_mruby_src)
+        file(MAKE_DIRECTORY "${_mruby_src}/include")
+    else()
+        file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/mruby-src-download/include")
+    endif()
     set(_mruby_cfg   "${CMAKE_SOURCE_DIR}/cmake/mruby_build_config.rb")
     set(_mruby_script "${CMAKE_BINARY_DIR}/build_mruby.cmake")
 
