@@ -141,24 +141,13 @@ function(aether_require_mruby)
         return()
     endif()
 
-    # Prefer vendored tree, else FetchContent
+    # Prefer vendored tree, else ExternalProject-Download beim BUILD.
+    # WICHTIG: kein FetchContent_Populate im Configure – der mruby-Klon passiert
+    # erst beim Build (robuster: Configure kann nicht an Netz-/Klon-Fehlern scheitern).
     set(_mruby_src "")
     if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/mruby-src/Rakefile")
         set(_mruby_src "${CMAKE_SOURCE_DIR}/third_party/mruby-src")
         message(STATUS "mruby: using vendored third_party/mruby-src")
-    else()
-        message(STATUS "mruby: fetching via FetchContent")
-        FetchContent_Declare(
-            mruby_fc
-            GIT_REPOSITORY https://github.com/mruby/mruby.git
-            GIT_TAG        3.3.0
-            GIT_SHALLOW    TRUE
-        )
-        FetchContent_GetProperties(mruby_fc)
-        if(NOT mruby_fc_POPULATED)
-            FetchContent_Populate(mruby_fc)
-        endif()
-        set(_mruby_src "${mruby_fc_SOURCE_DIR}")
     endif()
 
     set(_mruby_build "${CMAKE_BINARY_DIR}/mruby-build")
@@ -188,16 +177,30 @@ endif()
 ")
 
     include(ExternalProject)
-    ExternalProject_Add(mruby_ext
-        SOURCE_DIR ${_mruby_src}
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ${CMAKE_COMMAND} -P ${_mruby_script}
-        BUILD_IN_SOURCE 0
-        INSTALL_COMMAND ""
-        BUILD_BYPRODUCTS ${_mruby_lib}
-        LOG_BUILD 1
-        USES_TERMINAL_BUILD TRUE
-    )
+    if(_mruby_src)
+        ExternalProject_Add(mruby_ext
+            SOURCE_DIR ${_mruby_src}
+            CONFIGURE_COMMAND ""
+            BUILD_COMMAND ${CMAKE_COMMAND} -P ${_mruby_script}
+            INSTALL_COMMAND ""
+            BUILD_BYPRODUCTS ${_mruby_lib}
+            LOG_BUILD 1
+        )
+    else()
+        set(_mruby_dl_src "${CMAKE_BINARY_DIR}/mruby-src-download")
+        set(_mruby_src "${_mruby_dl_src}")
+        ExternalProject_Add(mruby_ext
+            GIT_REPOSITORY https://github.com/mruby/mruby.git
+            GIT_TAG        3.3.0
+            GIT_SHALLOW    TRUE
+            SOURCE_DIR     ${_mruby_dl_src}
+            CONFIGURE_COMMAND ""
+            BUILD_COMMAND ${CMAKE_COMMAND} -P ${_mruby_script}
+            INSTALL_COMMAND ""
+            BUILD_BYPRODUCTS ${_mruby_lib}
+            LOG_BUILD 1
+        )
+    endif()
 
     add_library(aether_mruby STATIC IMPORTED GLOBAL)
     set_target_properties(aether_mruby PROPERTIES
