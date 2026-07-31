@@ -2,22 +2,35 @@
 
 Aktuell aktiv in `.github/workflows/`:
 - `ci-build.yml` – CI (Linux Debug/Release, Linux Headless, Windows, macOS)
-- `release.yml` – Release-Pakete bei Tags `v*`
 
-Die fertigen YAMLs liegen zusätzlich unter `docs/dev/github-workflows/`
-(Referenz-Kopie, Stand des letzten Updates).
+**Release-Pakete** (`release.yml`) sind vorbereitet, aber noch nicht aktiv –
+die GitHub-App ohne `workflows`-Permission kann keine Workflow-Dateien
+pushen. Siehe „Aktivierung“.
+
+## Dateien in diesem Ordner
+
+| Datei | Inhalt |
+|-------|--------|
+| `ci-build.yml` | **Stabile Referenz-Kopie** des aktiven CI-Workflows (Stand: letzter Update) |
+| `ci.yml` | Identische Kopie (Legacy-Name, für manuelle Aktivierung) |
+| `ci-build-diag.yml` | **Experimentelle Diagnose-Version**: Configure-/Build-Fehler als GitHub-Annotationen (`::error::`), `configure.log` + `CMakeError.log`-Dump im Failure-Artifact, macOS mit getrennten Schritten und pip-Fallback für cmake/ninja. Nur verwenden, wenn du den exakten Fehler sehen willst |
+| `release.yml` | Release-Pakete bei Tags `v*` (Linux/Windows-Archive) – noch nicht aktiv |
 
 ## Aktivierung (einmalig)
 
+> **Hinweis:** `.github/workflows/` erfordert die `workflows`-Permission.
+> Die Arena-GitHub-App hat sie nicht – deshalb liegen die Dateien hier
+> als Referenz. Aktiviere sie mit deinem eigenen Token (Option B/C).
+
 ### Option A – GitHub Web UI
 1. Repo → **Actions** → „set up a workflow yourself“
-2. Inhalt von `ci.yml` einfügen, speichern als `.github/workflows/ci.yml`
+2. Inhalt von `ci-build.yml` einfügen, speichern als `.github/workflows/ci-build.yml`
 3. Ebenso `release.yml` als `.github/workflows/release.yml`
 
 ### Option B – Lokal mit deinem Token
 ```bash
 mkdir -p .github/workflows
-cp docs/dev/github-workflows/ci.yml .github/workflows/
+cp docs/dev/github-workflows/ci-build.yml .github/workflows/
 cp docs/dev/github-workflows/release.yml .github/workflows/
 git add .github/workflows
 git commit -m "ci: enable GitHub Actions workflows"
@@ -29,10 +42,10 @@ git push
 ```bash
 gh api --method PUT \
   -H "Accept: application/vnd.github+json" \
-  "/repos/Kenk-JADev/Game-Engine_2/contents/.github/workflows/ci.yml" \
+  "/repos/Kenk-JADev/Game-Engine_2/contents/.github/workflows/ci-build.yml" \
   -f message='ci: add CI workflow' \
-  -f content="$(base64 -w0 docs/dev/github-workflows/ci.yml)" \
-  -f branch=arena/019fb2b9-game-engine-2
+  -f content="$(base64 -w0 docs/dev/github-workflows/ci-build.yml)" \
+  -f branch=arena/019fb75b-game-engine-2
 ```
 
 Nach dem Anlegen startet der Workflow bei Push/PR automatisch.
@@ -46,11 +59,14 @@ Immer **Raw-Datei** aus diesem Ordner kopieren oder per:
 
 ```bash
 mkdir -p .github/workflows
-cp docs/dev/github-workflows/ci.yml .github/workflows/
+cp docs/dev/github-workflows/ci-build.yml .github/workflows/
 cp docs/dev/github-workflows/release.yml .github/workflows/
 ```
 
-Bei Build-Fehlern:
-- Job ist rot (exit code ≠ 0)
-- Step **Show build errors on failure** zeigt `error:` / Linker-Fehler
-- Artifact `*-failure-logs` enthält `build.log` und `ctest.log`
+## Fehlerdiagnose
+
+- Die **stabile** Version zeigt bei Fehlern: Job rot, Step „Show build errors
+  on failure“, Artifact `*-failure-logs` mit `build.log`/`ctest.log`.
+- Die **Diagnose-Version** (`ci-build-diag.yml`) zusätzlich: Configure-Fehler
+  als GitHub-Annotation, `configure.log`, `CMakeError.log`-Dump, macOS in
+  getrennten Schritten.
