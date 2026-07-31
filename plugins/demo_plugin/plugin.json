@@ -1,0 +1,9 @@
+{
+  "name": "DemoPlugin",
+  "version": "1.0.0",
+  "author": "Aether Team",
+  "description": "Beispiel-Plugin für Milestone 01: EventBridge-Integration",
+  "entry": "main.rb",
+  "dependencies": [],
+  "api_version": 1
+}
