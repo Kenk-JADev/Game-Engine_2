@@ -1,0 +1,349 @@
+# =============================================================================
+# AetherRPG Maker – Continuous Integration
+# =============================================================================
+# WICHTIG: ${{ matrix.build_type }} darf NICHT zu Markdown-Links werden.
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Linux – Full stack
+  # ---------------------------------------------------------------------------
+  linux:
+    name: Linux (${{ matrix.build_type }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+        include:
+          - build_type: Debug
+            extra_flags: "-DAETHER_ENABLE_ASAN=OFF"
+          - build_type: Release
+            extra_flags: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install system packages
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git pkg-config \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libgl1-mesa-dev libglu1-mesa-dev mesa-common-dev \
+            ruby ruby-dev rake bison g++ xvfb \
+            libasound2-dev libpulse-dev
+
+      - name: CMake configure
+        run: |
+          set -euxo pipefail
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DAETHER_BUILD_EDITOR=ON \
+            -DAETHER_BUILD_RUNTIME=ON \
+            -DAETHER_BUILD_TESTS=ON \
+            -DAETHER_WITH_GLFW=ON \
+            -DAETHER_WITH_OPENGL=ON \
+            -DAETHER_WITH_MINIAUDIO=ON \
+            -DAETHER_WITH_STB=ON \
+            -DAETHER_WITH_MRUBY=ON \
+            ${{ matrix.extra_flags }}
+
+      - name: Build
+        run: |
+          set -euxo pipefail
+          cmake --build build --config ${{ matrix.build_type }} 2>&1 | tee build.log
+
+      - name: Show build errors on failure
+        if: failure()
+        run: |
+          echo "======== BUILD LOG (tail) ========"
+          tail -n 200 build.log || true
+          echo "======== COMPILE/LINK ERRORS ========"
+          grep -nE 'error:|fatal error:|undefined reference|ld returned|FAILED:|error C[0-9]+' build.log || true
+
+      - name: Milestone 01 – EventBridge Smoke Test (Headless)
+        run: |
+          set -euxo pipefail
+          # Kompiliert test_event_bridge.cpp mit event_bridge.cpp ohne Fenster
+          g++ -std=c++20 -O0 -g \
+            -I. -Iengine/include -Ishared/include -Ithird_party/nlohmann -Ithird_party/stb \
+            tests/integration/test_event_bridge.cpp \
+            engine/src/game/event_bridge.cpp \
+            engine/src/game/event_system.cpp \
+            engine/src/core/logger.cpp \
+            -lpthread -o build/test_event_bridge_smoke
+          ./build/test_event_bridge_smoke
+
+      - name: Unit & smoke tests (headless)
+        run: |
+          set -euxo pipefail
+          ctest --test-dir build -C ${{ matrix.build_type }} \
+            --output-on-failure --timeout 120 2>&1 | tee ctest.log
+
+      - name: Show test failures on failure
+        if: failure()
+        run: |
+          echo "======== CTEST LOG ========"
+          cat ctest.log || true
+          grep -nE 'FAILED|error:|CHECK failed|Segmentation|Abort' ctest.log || true
+
+      - name: Runtime smoke under Xvfb
+        if: matrix.build_type == 'Release'
+        run: |
+          set -euxo pipefail
+          xvfb-run -a ./build/bin/Game \
+            --project samples/demo_project \
+            --max-frames 30
+
+      - name: Editor smoke under Xvfb
+        if: matrix.build_type == 'Release'
+        run: |
+          set -euxo pipefail
+          xvfb-run -a ./build/bin/AetherEditor \
+            --gui --new "$RUNNER_TEMP/ci_game" --testplay --max-frames 10
+
+      - name: Upload Linux binaries
+        if: matrix.build_type == 'Release' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aether-linux-x64
+          path: |
+            build/bin/Game
+            build/bin/AetherEditor
+            build/bin/assets/
+            build/bin/templates/
+            samples/demo_project/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.build_type }}-failure-logs
+          path: |
+            build.log
+            ctest.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Linux headless-only
+  # ---------------------------------------------------------------------------
+  linux-headless:
+    name: Linux Headless (Null backends)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minimal toolchain
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git
+
+      - name: Configure without GLFW
+        run: |
+          set -euxo pipefail
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DAETHER_WITH_GLFW=OFF \
+            -DAETHER_WITH_OPENGL=OFF \
+            -DAETHER_WITH_MRUBY=OFF \
+            -DAETHER_BUILD_TESTS=ON
+
+      - name: Milestone 01 – EventBridge Smoke (Headless, Null backends)
+        run: |
+          set -euxo pipefail
+          g++ -std=c++20 -O0 -g \
+            -I. -Iengine/include -Ishared/include -Ithird_party/nlohmann -Ithird_party/stb \
+            tests/integration/test_event_bridge.cpp \
+            engine/src/game/event_bridge.cpp \
+            engine/src/game/event_system.cpp \
+            engine/src/core/logger.cpp \
+            -lpthread -o build/test_event_bridge_smoke
+          ./build/test_event_bridge_smoke
+
+      - name: Build & test
+        run: |
+          set -euxo pipefail
+          cmake --build build 2>&1 | tee build.log
+          ctest --test-dir build --output-on-failure --timeout 120 2>&1 | tee ctest.log
+
+      - name: Show errors on failure
+        if: failure()
+        run: |
+          tail -n 200 build.log || true
+          grep -nE 'error:|fatal error:|undefined reference|FAILED:|CHECK failed' build.log ctest.log || true
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-headless-failure-logs
+          path: |
+            build.log
+            ctest.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Windows (MSVC) – hard-fail + error dump (gleich wie Linux)
+  # ---------------------------------------------------------------------------
+  windows:
+    name: Windows MSVC (${{ matrix.build_type }})
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DAETHER_BUILD_EDITOR=ON `
+            -DAETHER_BUILD_RUNTIME=ON `
+            -DAETHER_BUILD_TESTS=ON `
+            -DAETHER_WITH_GLFW=ON `
+            -DAETHER_WITH_OPENGL=ON `
+            -DAETHER_WITH_MINIAUDIO=ON `
+            -DAETHER_WITH_STB=ON `
+            -DAETHER_WITH_MRUBY=OFF
+          if ($LASTEXITCODE -ne 0) {
+            throw "CMake configure FAILED with exit code $LASTEXITCODE"
+          }
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          # Tee build output so we can dump errors on failure
+          cmake --build build --config ${{ matrix.build_type }} --parallel -- /m /v:m 2>&1 |
+            Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "======== BUILD FAILED (exit $LASTEXITCODE) ========"
+            Write-Host "======== MSVC / LINK ERRORS ========"
+            Select-String -Path build.log -Pattern 'error C[0-9]+|error LNK[0-9]+|fatal error|undefined reference|FAILED|Build FAILED' |
+              ForEach-Object { $_.Line }
+            throw "Build FAILED with exit code $LASTEXITCODE – see errors above and build.log artifact"
+          }
+
+      - name: Show build errors on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "======== BUILD LOG (tail 200) ========"
+          if (Test-Path build.log) {
+            Get-Content build.log -Tail 200
+            Write-Host "======== FILTERED ERRORS ========"
+            Select-String -Path build.log -Pattern 'error C[0-9]+|error LNK[0-9]+|fatal error|FAILED|undefined' |
+              ForEach-Object { $_.Line }
+          } else {
+            Write-Host "build.log not found"
+          }
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          ctest --test-dir build -C ${{ matrix.build_type }} `
+            --output-on-failure --timeout 180 2>&1 |
+            Tee-Object -FilePath ctest.log
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "======== CTEST FAILED (exit $LASTEXITCODE) ========"
+            if (Test-Path ctest.log) {
+              Select-String -Path ctest.log -Pattern 'FAILED|error:|CHECK failed|Segmentation|Abort' |
+                ForEach-Object { $_.Line }
+            }
+            throw "ctest FAILED with exit code $LASTEXITCODE"
+          }
+
+      - name: Show test failures on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "======== CTEST LOG ========"
+          if (Test-Path ctest.log) { Get-Content ctest.log } else { Write-Host "ctest.log missing" }
+
+      - name: Upload Windows binaries
+        if: matrix.build_type == 'Release' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aether-windows-x64
+          path: |
+            build/bin/Game.exe
+            build/bin/AetherEditor.exe
+            build/bin/assets/
+            build/bin/templates/
+            samples/demo_project/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Windows failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.build_type }}-failure-logs
+          path: |
+            build.log
+            ctest.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # macOS (best-effort)
+  # ---------------------------------------------------------------------------
+  macos:
+    name: macOS
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: brew install cmake ninja || true
+
+      - name: Configure & build
+        run: |
+          set -euxo pipefail
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DAETHER_BUILD_TESTS=ON \
+            -DAETHER_WITH_GLFW=ON \
+            -DAETHER_WITH_OPENGL=ON \
+            -DAETHER_WITH_MRUBY=OFF
+          cmake --build build 2>&1 | tee build.log
+          ctest --test-dir build --output-on-failure --timeout 180 2>&1 | tee ctest.log
+
+      - name: Show errors on failure
+        if: failure()
+        run: |
+          tail -n 200 build.log || true
+          grep -nE 'error:|fatal error:|FAILED:|CHECK failed' build.log ctest.log || true
