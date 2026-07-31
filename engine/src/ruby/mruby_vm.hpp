@@ -28,9 +28,11 @@ public:
                              const std::vector<std::string>& args);
 
 private:
+    void ensure_host_registered();
     void register_host_as_ruby();
 
     mrb_state* mrb_ = nullptr;
+    bool host_registered_ = false;
 };
 
 } // namespace aether::ruby

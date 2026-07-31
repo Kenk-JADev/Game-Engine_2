@@ -1,7 +1,7 @@
 # Modul 8 – Audio
 
 **Namespace:** `aether::audio`  
-**Status:** implementiert (Null-Backend; MiniAudio später)
+**Status:** implementiert (Null + MiniAudio optional)
 
 ---
 

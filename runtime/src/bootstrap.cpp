@@ -17,6 +17,7 @@
 #include <aether/game/shop.hpp>
 #include <aether/game/ui_hud.hpp>
 #include <aether/game/weather.hpp>
+#include <aether/ruby/ruby_host.hpp>
 #include <aether/shared/project_descriptor.hpp>
 
 #include <iostream>
@@ -86,6 +87,7 @@ struct RuntimeState {
     f64 playtime_accum = 0.0;
     bool map_active = false;
     std::unique_ptr<ruby::RubyVM> vm;
+    std::unique_ptr<ruby::RubyHost> ruby_host;
 };
 
 void open_dialog(RuntimeState& rs, std::vector<std::string> lines) {
@@ -99,78 +101,28 @@ void bind_ruby(RuntimeState& rs, audio::AudioEngine& audio) {
     if (!rs.vm) {
         return;
     }
-    auto& vm = *rs.vm;
-    audio::AudioEngine* ap = &audio;
-    game::WeatherSystem* wp = &rs.weather;
-    game::GameState* sp = &rs.game_state;
-    game::PlayerController* pp = &rs.player;
-    game::PartyInventory* inv = &rs.inventory;
-
-    vm.define_function(
-        {"Audio", "bgm_play", -1, [ap](const std::vector<std::string>& args) {
-             if (!args.empty()) {
-                 audio::PlayParams p;
-                 if (args.size() > 1) p.volume = std::stoi(args[1]);
-                 if (args.size() > 2) p.pitch = std::stoi(args[2]);
-                 ap->bgm_play(args[0], p);
-             }
-             return std::string("nil");
-         }});
-    vm.define_function(
-        {"Audio", "se_play", -1, [ap](const std::vector<std::string>& args) {
-             if (!args.empty()) {
-                 audio::PlayParams p;
-                 if (args.size() > 1) p.volume = std::stoi(args[1]);
-                 ap->se_play(args[0], p);
-             }
-             return std::string("nil");
-         }});
-    vm.define_function(
-        {"Weather", "set", -1, [wp](const std::vector<std::string>& args) {
-             const auto type = args.empty() ? game::WeatherType::None
-                                            : game::WeatherSystem::from_string(args[0]);
-             const f32 power = args.size() > 1 ? std::stof(args[1]) : 5.0f;
-             wp->set(type, power, 0.5f);
-             return std::string("nil");
-         }});
-    vm.define_function({"Player", "x", 0, [pp](const std::vector<std::string>&) {
-                            return std::to_string(pp->position().x);
-                        }});
-    vm.define_function({"Player", "z", 0, [pp](const std::vector<std::string>&) {
-                            return std::to_string(pp->position().z);
-                        }});
-    vm.define_function(
-        {"Inventory", "gain", -1, [inv](const std::vector<std::string>& args) {
-             if (args.size() >= 1) {
-                 // name or id – try id
-                 try {
-                     const u32 id = static_cast<u32>(std::stoul(args[0]));
-                     const i32 n = args.size() > 1 ? std::stoi(args[1]) : 1;
-                     inv->gain_item(id, n);
-                 } catch (...) {
-                 }
-             }
-             return std::string("nil");
-         }});
-    vm.define_function(
-        {"Inventory", "gold", 0, [inv](const std::vector<std::string>&) {
-             return std::to_string(inv->gold());
-         }});
-    vm.define_function(
-        {"Game", "switch", 1, [sp](const std::vector<std::string>& args) -> std::string {
-             if (args.empty()) return "false";
-             return sp->get_switch(static_cast<u32>(std::stoul(args[0]))) ? "true"
-                                                                          : "false";
-         }});
-    vm.define_function(
-        {"Game", "set_switch", 2, [sp](const std::vector<std::string>& args) {
-             if (args.size() >= 2) {
-                 sp->set_switch(static_cast<u32>(std::stoul(args[0])),
-                                args[1] == "true" || args[1] == "1");
-             }
-             return std::string("nil");
-         }});
+    ruby::RubyHostBindings b;
+    b.state = &rs.game_state;
+    b.inventory = &rs.inventory;
+    b.quests = &rs.quests;
+    b.weather = &rs.weather;
+    b.player = &rs.player;
+    b.camera = &rs.camera;
+    b.input = rs.gctx.input;
+    b.audio = &audio;
+    b.scenes = &rs.scenes;
+    b.gctx = &rs.gctx;
+    b.database = &rs.database;
+    b.scene = rs.scene.get();
+    b.screen_width = rs.project.graphics.width;
+    b.screen_height = rs.project.graphics.height;
+    b.frame_rate = rs.project.graphics.frame_rate;
+    b.map_id = rs.map_id;
+    b.map_name = rs.scene ? rs.scene->name() : "";
+    rs.ruby_host = std::make_unique<ruby::RubyHost>(std::move(b));
+    rs.ruby_host->install(*rs.vm);
 }
+
 
 bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
                    const render::Vec3* override_pos) {
@@ -218,6 +170,10 @@ bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
     rs.map_active = true;
     rs.event_runner.reset_map();
     rs.fade.fade_in(0.35f);
+    if (rs.ruby_host) {
+        rs.ruby_host->set_scene(rs.scene.get());
+        rs.ruby_host->update_map(map_id, rs.scene->name());
+    }
     return true;
 }
 
@@ -700,7 +656,7 @@ int run_game(const RuntimeOptions& options) {
     if (options.enable_ruby) {
         rs.vm = ruby::RubyVM::create();
         rs.vm->define_engine_api();
-        bind_ruby(rs, *audio);
+        bind_ruby(rs, *audio); // installiert RubyHost mit echten Bindings
         auto result = rs.vm->load_file((rs.project.root_dir / rs.project.scripts.entry).string());
         if (!result.ok) {
             core::log_warn("Runtime", "Script: " + result.error);
@@ -775,6 +731,47 @@ int run_game(const RuntimeOptions& options) {
 
         // Scene stack UI input
         rs.scenes.update(rs.gctx);
+
+        // Ruby-Host-Anfragen konsumieren (Scripts → Runtime)
+        if (rs.ruby_host) {
+            u32 tmap = 0;
+            render::Vec3 tpos{0.0f};
+            i32 tdir = 0;
+            if (rs.ruby_host->take_transfer(tmap, tpos, tdir)) {
+                rs.pending_transfer_map = tmap;
+                rs.pending_transfer_pos = tpos;
+                rs.has_pending_transfer = true;
+                rs.fade.fade_out(0.35f);
+            }
+            u32 mload = 0;
+            if (rs.ruby_host->take_map_load(mload) && mload != rs.map_id) {
+                if (rs.map_active) {
+                    rs.pending_transfer_map = mload;
+                    rs.pending_transfer_pos = rs.player.position();
+                    rs.has_pending_transfer = true;
+                    rs.fade.fade_out(0.35f);
+                }
+            }
+            const std::string scene_req = rs.ruby_host->take_scene_request();
+            if (scene_req == "title") {
+                rs.scenes.replace(std::make_unique<game::TitleScene>(), rs.gctx);
+            } else if (scene_req == "map" && rs.map_active) {
+                rs.scenes.replace(std::make_unique<game::MapScene>(), rs.gctx);
+            } else if (scene_req == "menu") {
+                rs.scenes.push(std::make_unique<game::MenuScene>(), rs.gctx);
+            } else if (scene_req == "saveload") {
+                rs.gctx.save_mode = true;
+                auto sl = std::make_unique<game::SaveLoadScene>();
+                sl->set_callback([&](int slot, bool is_save) { rs.scenes.pop(rs.gctx); });
+                rs.scenes.push(std::move(sl), rs.gctx);
+            } else if (scene_req == "battle" && !rs.database.enemies.empty() &&
+                       !rs.inventory.party().empty()) {
+                start_battle(rs, rs.database.enemies.front().id);
+            }
+            const int fade_req = rs.ruby_host->take_fade_request();
+            if (fade_req == 1) rs.fade.fade_out(0.5f);
+            if (fade_req == 2) rs.fade.fade_in(0.5f);
+        }
 
         // Title actions
         if (rs.gctx.request_new_game) {

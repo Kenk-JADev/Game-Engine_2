@@ -4,7 +4,7 @@
 
 - Header-only **cgltf** unter `third_party/cgltf/`
 - `aether::res::load_gltf_mesh` + `ResourceManager::load_mesh` für `.gltf`/`.glb`
-- OBJ weiterhin eigener Loader; FBX → Cube-Fallback
+- OBJ weiterhin eigener Loader; **FBX** seit Modul 24 über den eigenen FBX-Reader (ASCII + binär 7.x)
 
 ## Editor Undo
 

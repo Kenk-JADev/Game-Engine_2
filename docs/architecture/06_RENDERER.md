@@ -1,7 +1,7 @@
 # Modul 6 – Renderer
 
 **Namespace:** `aether::render`  
-**Status:** implementiert (Null-Backend + volle Culling/LOD-Pipeline; OpenGL-Pfad vorbereitet)
+**Status:** implementiert (Null + OpenGL 3.3/GLAD optional; Culling, LOD, GLSL 330)
 
 ---
 

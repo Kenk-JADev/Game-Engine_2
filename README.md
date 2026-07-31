@@ -85,8 +85,8 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Renderer | Null + OpenGL 3.3/GLAD (optional), Culling, LOD, GLSL 330 |
 | Input | RPG-Actions (confirm/cancel/WASD…) |
 | Audio | BGM/BGS/ME/SE – Null + **miniaudio** |
-| Resources | VFS, Cache, JSON, **stb_image**, OBJ-Loader |
-| Ruby | Stub-VM immer; **mruby** mit `-DAETHER_WITH_MRUBY=ON` (CI mit System-Ruby) |
+| Resources | VFS, Cache, JSON, **stb_image**, OBJ-Loader, **eigener FBX-Reader** (ASCII + binär 7.x) |
+| Ruby | Stub-VM immer; **mruby** mit `-DAETHER_WITH_MRUBY=ON`; **RubyHost** mit echten Bindings für Graphics/Audio/Input/SceneManager/Player/NPC/Enemy/Camera/Weather/Inventory/Quest/Dialogue/Map/Game |
 | Scene | Objekte platzieren → **auto Kollision** |
 | Physics | AABB move_and_collide, Trigger |
 | Navigation | Grid-Bake aus Kollision, A*, NavAgent |
@@ -108,6 +108,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Editor UI | ImGui-Tabs, Event-Palette, Viewport-Kamera |
 | Runtime | Titel → Map → Menü/Dialog/Kampf/Save |
 | glTF/GLB | cgltf-Loader |
+| FBX | Eigener Reader (ASCII + binär 7.x), kein externes SDK |
 | Script-IDE | Highlight-Vorschau, Autocomplete, API-Doku |
 | Undo | Karteneditor Snapshot-Undo/Redo |
 | Handbuch | docs/user/HANDBUCH.md |
@@ -116,7 +117,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Events | Autorun, PlayerTouch, Fade bei Transfer |
 | Database | + Klassen, Animationen |
 | Input | Gamepad (A/B/Dpad/Stick) |
-| Tests | 20 automatisierte Tests |
+| Tests | 22 automatisierte Tests |
 
 ## Vendored Third-Party
 

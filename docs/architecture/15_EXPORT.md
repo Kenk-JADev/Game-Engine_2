@@ -1,7 +1,7 @@
 # Modul 15 – Export
 
 **Namespace:** `aether::editor`  
-**Status:** Dateisystem-Export implementiert
+**Status:** Dateisystem-Export implementiert (Projekt + Game-Binary + Engine-Assets)
 
 ```
 MyGame_Export/

@@ -36,9 +36,11 @@ set(AETHER_ENGINE_SOURCES
     # Resources
     src/res/resource_manager.cpp
     src/res/gltf_loader.cpp
+    src/res/fbx_loader.cpp
     src/res/cgltf_impl.cpp
     # Ruby
     src/ruby/ruby_vm.cpp
+    src/ruby/ruby_host.cpp
     # mruby_vm.cpp optionally appended below
     # Game framework
     src/game/event_system.cpp

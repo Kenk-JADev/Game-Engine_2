@@ -139,6 +139,20 @@ public:
                 const auto paren = rest.find('(');
                 if (paren == std::string::npos) {
                     method = rest;
+                    // Setter-Syntax: "Graphics.frame_rate = 60" → "frame_rate=", ["60"]
+                    const auto eq = rest.find('=');
+                    if (eq != std::string::npos) {
+                        std::string m = rest.substr(0, eq);
+                        while (!m.empty() && m.back() == ' ') m.pop_back();
+                        std::string val = rest.substr(eq + 1);
+                        while (!val.empty() && val.front() == ' ') val.erase(val.begin());
+                        if (val.size() >= 2 && val.front() == '"' && val.back() == '"') {
+                            val = val.substr(1, val.size() - 2);
+                        }
+                        if (val.starts_with(":")) val = val.substr(1);
+                        method = m + "=";
+                        args = {val};
+                    }
                 } else {
                     method = rest.substr(0, paren);
                     std::string inside = rest.substr(paren + 1);

@@ -1,6 +1,6 @@
 # Modul 17 – Tests
 
-**Status:** aktiv, erweiterbar
+**Status:** 22 automatisierte Tests (Unit + Runtime/Editor-Smoke)
 
 ## Unit- / Smoke-Tests
 

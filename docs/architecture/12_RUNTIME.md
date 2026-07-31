@@ -1,7 +1,7 @@
 # Modul 12 – Runtime (Game.exe)
 
 **Target:** `Game`  
-**Status:** implementiert (Headless + Null-Backends)
+**Status:** implementiert (Headless + GLFW/OpenGL; RubyHost-Anfragen, Transfer, Szenen)
 
 ---
 

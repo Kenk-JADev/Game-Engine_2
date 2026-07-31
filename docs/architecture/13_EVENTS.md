@@ -1,7 +1,7 @@
 # Modul 13 – Eventsystem
 
 **Namespace:** `aether::game`  
-**Status:** Datenmodell + Interpreter implementiert
+**Status:** Datenmodell + Interpreter implementiert (Autorun, PlayerTouch, Fade bei Transfer)
 
 Visueller Event-Editor (ohne Programmierung) speichert Befehle als JSON.
 

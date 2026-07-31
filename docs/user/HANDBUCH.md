@@ -103,7 +103,7 @@ MeinSpiel/
 | PNG, JPG | ja (stb_image) |
 | OBJ | ja |
 | glTF, GLB | ja (cgltf) |
-| FBX | nein (Cube-Fallback) |
+| FBX | ja (eigener Reader: ASCII + binär 7.x) |
 | WAV, OGG, MP3 | ja (miniaudio); Demo enthält WAV-Beispiele |
 
 ### Script-Debugger

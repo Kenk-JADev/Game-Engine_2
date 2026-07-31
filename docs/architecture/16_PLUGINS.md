@@ -1,7 +1,7 @@
 # Modul 16 – Plugins
 
 **Namespace:** `aether::plugin`  
-**Status:** Scanner + Loader implementiert
+**Status:** Scanner + Loader implementiert (plugin.json + main.rb + assets/)
 
 ```
 plugins/my_plugin/

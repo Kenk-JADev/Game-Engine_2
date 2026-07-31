@@ -1,7 +1,7 @@
 # Modul 10 – Ruby-Einbindung
 
 **Namespace:** `aether::ruby`  
-**Status:** implementiert (Stub-VM + API-Bootstrap; mruby später)
+**Status:** implementiert (Stub + mruby optional; echte Host-Bindings via RubyHost, siehe Modul 25)
 
 ---
 

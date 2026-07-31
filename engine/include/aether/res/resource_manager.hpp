@@ -3,13 +3,12 @@
  * @brief Asset-Cache, Pfadauflösung und asynchrones Laden.
  *
  * Unterstützte Formate (Master-Prompt):
- *   Modelle: glTF, GLB, FBX, OBJ  (Import später via assimp)
- *   Texturen: PNG, JPG            (stb_image später)
- *   Audio: WAV, OGG, MP3
+ *   Modelle: glTF, GLB (cgltf), FBX (eigener Reader), OBJ
+ *   Texturen: PNG, JPG (stb_image)
+ *   Audio: WAV, OGG, MP3 (miniaudio / Null)
  *   Daten: JSON
  *
- * Phase 1: Text/JSON/Bytes-Cache + Stub-Textur/Mesh-Loader,
- *          Directory-Mounts, Referenzzählung, async via ThreadPool.
+ * Directory-Mounts, Cache mit Referenzzählung, async via ThreadPool.
  */
 #pragma once
 

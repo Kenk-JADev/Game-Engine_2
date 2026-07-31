@@ -113,7 +113,12 @@ mrb_value generic_module_method(mrb_state* mrb, mrb_value self) {
         }
     } catch (...) {
     }
-    return mrb_str_new_cstr(mrb, result.value.c_str());
+    // Gequotete Host-Strings (z. B. `"rain"`) ohne Anführungszeichen liefern
+    std::string value = result.value;
+    if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+        value = value.substr(1, value.size() - 2);
+    }
+    return mrb_str_new_cstr(mrb, value.c_str());
 }
 
 } // namespace
@@ -202,8 +207,16 @@ void MRubyVM::define_engine_api() {
     define_function({"Map", "tint", -1, noop});
     define_function({"Map", "scroll", -1, noop});
 
+    core::log_info("Ruby",
+                   "Engine API modules defined (mruby) – Host-Bindings folgen beim ersten eval");
+}
+
+void MRubyVM::ensure_host_registered() {
+    if (host_registered_ || !mrb_) {
+        return;
+    }
+    host_registered_ = true;
     register_host_as_ruby();
-    core::log_info("Ruby", "Engine API modules defined (mruby)");
 }
 
 void MRubyVM::register_host_as_ruby() {
@@ -247,6 +260,7 @@ EvalResult MRubyVM::eval(std::string_view source, std::string_view filename) {
         return r;
     }
     g_current_vm = this;
+    ensure_host_registered();
 
     mrbc_context* ctx = mrbc_context_new(mrb_);
     mrbc_filename(mrb_, ctx, std::string(filename).c_str());

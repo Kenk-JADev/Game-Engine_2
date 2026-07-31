@@ -275,18 +275,26 @@ Sinks: Konsole, Datei (`logs/aether_YYYYMMDD.log`), optional Editor-Panel.
 | 3 | Build-System | ✅ |
 | 4 | Core | ✅ |
 | 5 | Fenster | ✅ (Null + GLFW optional) |
-| 6 | Renderer | ✅ (Null + Culling/LOD) |
-| 7 | Input | ✅ |
-| 8 | Audio | ✅ (Null-Backend) |
-| 9 | Ressourcenverwaltung | ✅ |
-| 10 | Ruby-Einbindung | ✅ (Stub-VM) |
-| 11 | Editor | ✅ CLI-Grundgerüst |
-| 12 | Runtime | ✅ |
+| 6 | Renderer | ✅ (Null + OpenGL, Culling/LOD) |
+| 7 | Input | ✅ (+ Gamepad) |
+| 8 | Audio | ✅ (Null + MiniAudio) |
+| 9 | Ressourcenverwaltung | ✅ (glTF/GLB, FBX, OBJ, PNG/JPG, WAV/OGG/MP3) |
+| 10 | Ruby-Einbindung | ✅ (Stub + mruby; echte Host-Bindings) |
+| 11 | Editor | ✅ ImGui-GUI (Projekt/Karte/Datenbank/Events/Skripte/Testspiel/Export) |
+| 12 | Runtime | ✅ (Game.exe: Titel → Map → Menü/Dialog/Kampf/Save) |
 | 13 | Eventsystem | ✅ Interpreter + JSON |
 | 14 | Datenbank | ✅ JSON |
 | 15 | Export | ✅ Dateisystem-Paket |
 | 16 | Plugins | ✅ Loader |
-| 17 | Tests | ✅ 11+ Unit/Smoke |
+| 17 | Tests | ✅ 22 Unit/Smoke |
+| 18 | Physik/Navigation/Szene | ✅ (AABB, A*, NavGrid) |
+| 19 | CI & mruby | ✅ (Linux/Windows/macOS-Workflows) |
+| 20 | Gameplay-Runtime | ✅ (HUD, Fade, Testspiel) |
+| 21 | Szenen/Save/Inventar/Shop | ✅ |
+| 22 | Kampf/Quest/HUD | ✅ |
+| 23 | glTF/Script-IDE/Undo | ✅ |
+| 24 | FBX-Import | ✅ eigener Reader (ASCII + binär 7.x) |
+| 25 | Ruby-Host-API | ✅ echte Engine-Bindings |
 
 ---
 

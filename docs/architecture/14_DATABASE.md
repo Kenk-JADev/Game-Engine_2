@@ -1,7 +1,7 @@
 # Modul 14 – Datenbank
 
 **Namespace:** `aether::game::Database`  
-**Status:** JSON laden/speichern implementiert
+**Status:** JSON laden/speichern implementiert (Actors, Classes, Enemies, Items, Skills, Animations, System)
 
 ## Dateien unter `data/`
 

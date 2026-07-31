@@ -2,6 +2,7 @@
  * @file resource_manager.cpp
  */
 #include <aether/res/resource_manager.hpp>
+#include <aether/res/fbx_loader.hpp>
 #include <aether/res/gltf_loader.hpp>
 #include <aether/core/logger.hpp>
 
@@ -271,6 +272,14 @@ Result<std::shared_ptr<render::Mesh>> ResourceManager::read_mesh_stub(const fs::
             return Result<std::shared_ptr<render::Mesh>>::ok(std::move(mesh));
         }
         core::log_warn("Res", "glTF load failed, cube fallback: " + path.string());
+    }
+
+    if (e == ".fbx") {
+        auto mesh = load_fbx_mesh(path);
+        if (mesh) {
+            return Result<std::shared_ptr<render::Mesh>>::ok(std::move(mesh));
+        }
+        core::log_warn("Res", "FBX load failed, cube fallback: " + path.string());
     }
 
     if (e == ".obj") {
