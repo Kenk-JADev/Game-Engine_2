@@ -16,16 +16,18 @@
 #include <utility>
 
 namespace aether::window {
+
+#if defined(AETHER_WITH_GLFW)
+// Externe Funktion aus glfw_window.cpp (NICHT im anonymous namespace:
+// dort haette sie internal linkage und waere vom Linker nicht auffindbar).
+void glfw_install_error_callback();
+#endif
+
 namespace {
 
 bool g_initialized = false;
 WindowBackend g_backend = WindowBackend::Null;
 int g_init_refcount = 0;
-
-#if defined(AETHER_WITH_GLFW)
-// aus glfw_window.cpp
-void glfw_install_error_callback();
-#endif
 
 WindowBackend choose_backend(std::optional<WindowBackend> force,
                              core::AppMode mode) {

@@ -58,7 +58,9 @@ bool GlRenderer::init_gl() {
 
     // gladLoadGLLoader needs a proc address function – GLFW provides glfwGetProcAddress
 #if defined(AETHER_WITH_GLFW)
-    extern void* aether_glfw_get_proc_address(const char* name);
+    // glfw_proc.cpp definiert die Funktion als extern "C" – die Deklaration
+    // hier muss dasselbe Linkage haben (sonst C++-Name-Mangling-Konflikt).
+    extern "C" void* aether_glfw_get_proc_address(const char* name);
     if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(aether_glfw_get_proc_address))) {
         // Fallback: try gladLoadGL if available
         if (!gladLoadGL()) {
