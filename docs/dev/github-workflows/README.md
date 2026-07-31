@@ -11,9 +11,8 @@ pushen. Siehe „Aktivierung“.
 
 | Datei | Inhalt |
 |-------|--------|
-| `ci-build.yml` | **Stabile Referenz-Kopie** des aktiven CI-Workflows (Stand: letzter Update) |
+| `ci-build.yml` | **Referenz-Kopie des aktiven CI-Workflows** (Stand: letzter Update) – inkl. Diagnose: Configure-/Build-Fehler als GitHub-Annotationen (`::error::`), `configure.log` + `CMakeError.log`-Dump im Failure-Artifact, macOS in getrennten Schritten mit pip-Fallback |
 | `ci.yml` | Identische Kopie (Legacy-Name, für manuelle Aktivierung) |
-| `ci-build-diag.yml` | **Experimentelle Diagnose-Version**: Configure-/Build-Fehler als GitHub-Annotationen (`::error::`), `configure.log` + `CMakeError.log`-Dump im Failure-Artifact, macOS mit getrennten Schritten und pip-Fallback für cmake/ninja. Nur verwenden, wenn du den exakten Fehler sehen willst |
 | `release.yml` | Release-Pakete bei Tags `v*` (Linux/Windows-Archive) – noch nicht aktiv |
 
 ## Aktivierung (einmalig)
@@ -65,8 +64,6 @@ cp docs/dev/github-workflows/release.yml .github/workflows/
 
 ## Fehlerdiagnose
 
-- Die **stabile** Version zeigt bei Fehlern: Job rot, Step „Show build errors
-  on failure“, Artifact `*-failure-logs` mit `build.log`/`ctest.log`.
-- Die **Diagnose-Version** (`ci-build-diag.yml`) zusätzlich: Configure-Fehler
-  als GitHub-Annotation, `configure.log`, `CMakeError.log`-Dump, macOS in
-  getrennten Schritten.
+Bei Fehlern zeigt die aktive CI: Job rot, Step „Show … errors on failure“,
+Artifact `*-failure-logs` mit `build.log`/`ctest.log`/`configure.log`, und
+die exakten Fehlerzeilen als GitHub-Annotation (im Checks-Tab sichtbar).

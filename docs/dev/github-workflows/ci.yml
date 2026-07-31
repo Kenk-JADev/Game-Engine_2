@@ -66,7 +66,20 @@ jobs:
             -DAETHER_WITH_MINIAUDIO=ON \
             -DAETHER_WITH_STB=ON \
             -DAETHER_WITH_MRUBY=ON \
-            ${{ matrix.extra_flags }}
+            ${{ matrix.extra_flags }} 2>&1 | tee configure.log
+
+      - name: Show configure errors on failure
+        if: failure()
+        run: |
+          echo "======== CONFIGURE LOG (tail) ========"
+          tail -n 120 configure.log || true
+          echo "======== CMake Error/Output Logs ========"
+          find build -name 'CMakeError.log' -o -name 'CMakeOutput.log' | while read f; do
+            echo "---- $f ----"
+            tail -n 60 "$f" || true
+          done
+          echo "======== ERRORS AS ANNOTATIONS ========"
+          grep -nE 'CMake Error|FATAL_ERROR|error:|fatal error:|undefined reference|FAILED:' configure.log | head -20 | sed 's/^/::error::/' || true
 
       - name: Build
         run: |
@@ -80,6 +93,8 @@ jobs:
           tail -n 200 build.log || true
           echo "======== COMPILE/LINK ERRORS ========"
           grep -nE 'error:|fatal error:|undefined reference|ld returned|FAILED:|error C[0-9]+' build.log || true
+          echo "======== ERRORS AS ANNOTATIONS ========"
+          grep -nE 'error:|fatal error:|undefined reference|FAILED:|error C[0-9]+' build.log | head -20 | sed 's/^/::error::/' || true
 
       - name: Unit & smoke tests (headless)
         run: |
@@ -131,6 +146,7 @@ jobs:
           path: |
             build.log
             ctest.log
+            configure.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -303,9 +319,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install deps
-        run: brew install cmake ninja || true
+        run: |
+          set -euxo pipefail
+          # macos-14-Image bringt cmake/ninja bereits mit; falls nicht, pip-Fallback.
+          if ! command -v cmake >/dev/null || ! command -v ninja >/dev/null; then
+            python3 -m pip install --user --break-system-packages cmake ninja || true
+            python3 -m pip install --user cmake ninja || true
+          fi
+          command -v cmake && cmake --version
+          command -v ninja && ninja --version
 
-      - name: Configure & build
+      - name: Configure
         run: |
           set -euxo pipefail
           cmake -S . -B build -G Ninja \
@@ -313,12 +337,25 @@ jobs:
             -DAETHER_BUILD_TESTS=ON \
             -DAETHER_WITH_GLFW=ON \
             -DAETHER_WITH_OPENGL=ON \
-            -DAETHER_WITH_MRUBY=OFF
+            -DAETHER_WITH_MRUBY=OFF 2>&1 | tee configure.log
+
+      - name: Build
+        run: |
+          set -euxo pipefail
           cmake --build build 2>&1 | tee build.log
+
+      - name: Test
+        run: |
+          set -euxo pipefail
           ctest --test-dir build --output-on-failure --timeout 180 2>&1 | tee ctest.log
 
       - name: Show errors on failure
         if: failure()
         run: |
+          echo "======== CONFIGURE LOG ========"
+          tail -n 120 configure.log || true
+          echo "======== BUILD LOG ========"
           tail -n 200 build.log || true
-          grep -nE 'error:|fatal error:|FAILED:|CHECK failed' build.log ctest.log || true
+          echo "======== ERRORS AS ANNOTATIONS ========"
+          grep -nE 'error:|fatal error:|FAILED:|CMake Error|CHECK failed|undefined reference' \
+            configure.log build.log ctest.log | head -20 | sed 's/^/::error::/' || true
