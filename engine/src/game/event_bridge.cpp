@@ -46,7 +46,7 @@ void EventBridge::update(float dt) {
 
     // Wenn Interpreter bereits läuft, lassen wir ihn weiterlaufen (Parallel-Events / Wait).
     // Neue Events werden nur gestartet, wenn Interpreter nicht aktiv ist.
-    const bool interpreter_busy = interpreter_->is_running();
+    bool interpreter_busy = interpreter_->is_running();
 
     for (auto& [id, reg] : events_) {
         // Reset des Frame-Flags
