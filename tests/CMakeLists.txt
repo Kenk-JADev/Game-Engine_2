@@ -50,6 +50,15 @@ target_link_libraries(aether_export_test PRIVATE aether::engine aether::shared)
 aether_apply_common_options(aether_export_test)
 add_test(NAME aether_export_test COMMAND aether_export_test)
 
+add_executable(aether_testplay_test unit/testplay_test.cpp
+    ${CMAKE_SOURCE_DIR}/editor/src/testplay/testplay_runner.cpp)
+target_include_directories(aether_testplay_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/editor/src
+    ${CMAKE_SOURCE_DIR}/engine/include)
+target_link_libraries(aether_testplay_test PRIVATE aether::engine aether::shared)
+aether_apply_common_options(aether_testplay_test)
+add_test(NAME aether_testplay_test COMMAND aether_testplay_test)
+
 # Runtime smoke (headless, few frames) – uses samples if present
 add_test(
     NAME aether_runtime_smoke

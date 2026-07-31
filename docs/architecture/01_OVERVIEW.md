@@ -299,6 +299,7 @@ Sinks: Konsole, Datei (`logs/aether_YYYYMMDD.log`), optional Editor-Panel.
 | 27 | Character-Sprites & GameOver | ✅ Billboard-Quads, Pixel-Art-Demo, Game-Over-Screen |
 | 28 | Event-Animationen & Kamera | ✅ PlayAnimation (Skalen-Puls), ControlCamera (Offset/Position/Shake) |
 | 29 | Wetter-Partikel | ✅ Regen/Sturm/Schnee/Nebel als sichtbare Partikel |
+| 30 | Echtes Testspiel | ✅ Runtime-Subprozess (F5/Tab) + Headless-Smoke |
 
 ---
 

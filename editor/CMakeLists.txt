@@ -9,6 +9,7 @@ set(AETHER_EDITOR_SOURCES
     src/scripts/script_highlighter.cpp
     src/scripts/script_debugger.cpp
     src/export/exporter.cpp
+    src/testplay/testplay_runner.cpp
 )
 
 add_executable(AetherEditor ${AETHER_EDITOR_SOURCES})

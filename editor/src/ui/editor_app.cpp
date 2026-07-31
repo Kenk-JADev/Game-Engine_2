@@ -5,6 +5,7 @@
 #include "editor_app.hpp"
 #include "export/exporter.hpp"
 #include "scripts/script_highlighter.hpp"
+#include "testplay/testplay_runner.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -322,7 +323,15 @@ void EditorApp::draw_menu_bar() {
         if (ImGui::BeginMenu("Spiel")) {
             if (ImGui::MenuItem("Testspiel", "F5", false, project_open_)) {
                 tab_ = EditorTab::TestPlay;
-                run_testplay_smoke();
+                if (cfg_.headless) {
+                    run_testplay_smoke();
+                } else {
+                    save_project();
+                    std::string err;
+                    if (!start_testplay(project_.root_dir, err)) {
+                        status_message_ = err;
+                    }
+                }
             }
             ImGui::EndMenu();
         }
@@ -1087,14 +1096,30 @@ void EditorApp::draw_testplay_tab() {
 #if defined(AETHER_WITH_IMGUI)
     ImGui::TextUnformatted("Testspiel");
     ImGui::TextWrapped(
-        "Startet die Runtime-Logik im Debug-Kontext (Scripts, Audio-API, kurze Simulation).");
+        "Startet die Game-Runtime mit dem aktuellen Projekt in einem eigenen Fenster – "
+        "wie in klassischen RPG Makern. Karte, Skripte und Datenbank werden vorher gespeichert.");
     if (!project_open_) {
         ImGui::TextUnformatted("Kein Projekt geöffnet.");
         return;
     }
-    if (ImGui::Button("Testspiel starten", ImVec2(200, 40))) {
+    if (ImGui::Button("Testspiel starten", ImVec2(220, 44))) {
+        save_project(); // aktuelle Karte/Skripte/Datenbank sichern
+        std::string err;
+        if (start_testplay(project_.root_dir, err)) {
+            status_message_ = "Testspiel gestartet – Spiel-Fenster schließen zum Beenden";
+            script_output_ = "Testspiel läuft … (Log: logs/aether_<datum>.log)";
+        } else {
+            status_message_ = err;
+            script_output_ = err;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Headless-Smoke", ImVec2(180, 44))) {
         run_testplay_smoke();
     }
+    ImGui::TextWrapped(
+        "Hinweis: Das Testspiel-Binary (Game/Game.exe) muss neben AetherEditor liegen.");
+    ImGui::Separator();
     ImGui::TextWrapped("%s", script_output_.c_str());
 #endif
 }

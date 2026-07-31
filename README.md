@@ -105,7 +105,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Database | actors/enemies/items/skills/system JSON |
 | Plugins | `plugin.json` + `main.rb` |
 | Export | Spielpaket mit Game-Binary |
-| Editor UI | ImGui-Tabs, Event-Palette, Viewport-Kamera |
+| Editor UI | ImGui-Tabs, Event-Palette, Viewport-Kamera, **echtes Testspiel** (F5) |
 | Runtime | Titel → Map → Menü/Dialog/Kampf/Save |
 | glTF/GLB | cgltf-Loader |
 | FBX | Eigener Reader (ASCII + binär 7.x), kein externes SDK |
