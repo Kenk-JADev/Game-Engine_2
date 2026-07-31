@@ -7,6 +7,7 @@
 #include <aether/aether.hpp>
 #include <aether/anim/animation.hpp>
 #include <aether/game/battle.hpp>
+#include <aether/game/event_bridge.hpp>
 #include <aether/game/event_runner.hpp>
 #include <aether/game/inventory.hpp>
 #include <aether/game/map_loader.hpp>
@@ -66,6 +67,7 @@ struct RuntimeState {
     game::FollowCamera follow_cam;
     game::GameState game_state;
     game::EventInterpreter interpreter{&game_state};
+    game::EventBridge event_bridge{&interpreter};
     game::WeatherSystem weather;
     game::PartyInventory inventory;
     game::SaveSystem saves;
@@ -217,6 +219,7 @@ bool load_map_into(RuntimeState& rs, render::Renderer* renderer, u32 map_id,
     rs.follow_cam.snap(rs.player.position());
     rs.map_active = true;
     rs.event_runner.reset_map();
+    rs.event_bridge.clear(); // Milestone 01: EventBridge-Lifecycle bei Kartenwechsel
     rs.fade.fade_in(0.35f);
     return true;
 }
@@ -519,6 +522,9 @@ void update_map_gameplay(RuntimeState& rs, input::InputManager& input, f64 fixed
     if (rs.scenes.current() && rs.scenes.current()->id() != game::GameSceneId::Map) {
         return;
     }
+
+    // Milestone 01: EventBridge-Update (ADR-001) – Editor → Runtime Brücke
+    rs.event_bridge.update(static_cast<float>(fixed_dt));
 
     if (rs.interpreter.is_running()) {
         pump_interpreter(rs);
