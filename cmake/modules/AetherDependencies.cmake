@@ -75,6 +75,11 @@ function(aether_require_glfw)
     set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_INSTALL  OFF CACHE BOOL "" FORCE)
+    # Wayland deaktivieren: Aether zielt auf X11/Cocoa. Sonst schlägt der
+    # GLFW-Configure fehl, wenn Wayland-Header vorhanden sind, aber
+    # wayland-scanner fehlt (klassischer CI-Fehler auf ubuntu-Images).
+    set(GLFW_BUILD_WAYLAND  OFF CACHE BOOL "" FORCE)
     set(GLFW_INSTALL        OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(glfw)
     if(TARGET glfw)
