@@ -53,16 +53,22 @@ function(aether_require_glfw)
         set(AETHER_GLFW_AVAILABLE TRUE PARENT_SCOPE)
         return()
     endif()
-    # Ohne X11/Wayland-Headers macht FetchContent keinen Sinn – vorher prüfen
-    find_path(AETHER_X11_INCLUDE X11/Xlib.h)
-    find_library(AETHER_X11_LIB X11)
-    if(NOT AETHER_X11_INCLUDE OR NOT AETHER_X11_LIB)
-        message(WARNING
-            "GLFW requested but X11 dev packages not found. "
-            "Building without GLFW (NullWindow only). "
-            "Install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev")
-        set(AETHER_GLFW_AVAILABLE FALSE PARENT_SCOPE)
-        return()
+    # Ohne X11-Header macht der GLFW-FetchContent auf LINUX keinen Sinn.
+    # WICHTIG: Diese Pruefung darf nur auf Linux laufen - Windows (Win32-API)
+    # und macOS (Cocoa) brauchen kein X11. Vorher wurde sie auf allen
+    # Plattformen ausgefuehrt, wodurch GLFW auf Windows IMMER deaktiviert
+    # wurde (NullWindow) - obwohl der Build mit -DAETHER_WITH_GLFW=ON lief.
+    if(UNIX AND NOT APPLE)
+        find_path(AETHER_X11_INCLUDE X11/Xlib.h)
+        find_library(AETHER_X11_LIB X11)
+        if(NOT AETHER_X11_INCLUDE OR NOT AETHER_X11_LIB)
+            message(WARNING
+                "GLFW requested but X11 dev packages not found. "
+                "Building without GLFW (NullWindow only). "
+                "Install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev")
+            set(AETHER_GLFW_AVAILABLE FALSE PARENT_SCOPE)
+            return()
+        endif()
     endif()
 
     message(STATUS "GLFW not found – fetching via FetchContent")
