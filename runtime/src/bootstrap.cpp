@@ -86,6 +86,7 @@ struct RuntimeState {
     render::Camera camera;
     u32 map_id = 1;
     res::ResourceManager* resources = nullptr; ///< gesetzt in run_game
+    std::shared_ptr<render::Mesh> particle_mesh; ///< Wetter-Partikel-Quad
     i32 playtime = 0;
     f64 playtime_accum = 0.0;
     // Laufende Event-Animation (einfache Skalen-Puls-Animation)
@@ -747,6 +748,12 @@ int run_game(const RuntimeOptions& options) {
                        static_cast<f32>(wdesc.height > 0 ? wdesc.height : 1);
     rs.camera.set_perspective(45.0f, aspect, 0.1f, 500.0f);
 
+    // Partikel-Mesh für Wetter (einmal erzeugen, wird skaliert)
+    rs.particle_mesh = render::Mesh::create_quad(1.0f, 1.0f);
+    if (renderer) {
+        renderer->upload_mesh(*rs.particle_mesh);
+    }
+
     // Ruby / plugins
     plugin::PluginLoader plugins;
     const auto plug_count = plugins.scan(rs.project.root_dir / "plugins");
@@ -984,6 +991,29 @@ int run_game(const RuntimeOptions& options) {
             std::vector<render::Renderable> items;
             if (rs.map_active && rs.scene && !rs.in_battle) {
                 rs.scene->collect_renderables(items);
+                // Wetter-Partikel als kleine Billboard-Quads
+                if (rs.weather.particle_count() > 0 && rs.particle_mesh) {
+                    const auto wtype = rs.weather.state().type;
+                    const bool fog = wtype == game::WeatherType::Fog;
+                    const bool snow = wtype == game::WeatherType::Snow;
+                    const auto& parts = rs.weather.particles();
+                    items.reserve(items.size() + parts.size());
+                    for (const auto& pt : parts) {
+                        render::Renderable r;
+                        r.mesh = rs.particle_mesh;
+                        r.transform.position = pt.pos;
+                        r.transform.scale =
+                            fog ? render::Vec3{2.5f, 1.2f, 2.5f}
+                                : (snow ? render::Vec3{0.12f, 0.12f, 0.12f}
+                                        : render::Vec3{0.06f, 0.35f, 0.06f});
+                        r.billboard = true;
+                        r.material.albedo =
+                            fog ? render::Color{0.8f, 0.82f, 0.85f, 0.35f}
+                                : render::Color{0.9f, 0.94f, 1.0f, 0.85f};
+                        r.material.transparent = fog;
+                        items.push_back(std::move(r));
+                    }
+                }
             }
             renderer->begin_frame();
             if (rs.map_active && !rs.in_battle) {

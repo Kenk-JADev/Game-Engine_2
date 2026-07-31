@@ -56,6 +56,36 @@ int main() {
     auto c = weather.clear_color_mod(Color::white());
     CHECK(c.b > 0.5f);
 
+    // Weather-Partikel: Regen erzeugt fallende Partikel um den Spieler
+    {
+        WeatherSystem w;
+        w.set(WeatherType::Rain, 6.0f, 0.0f);
+        CHECK(w.particle_count() > 0);
+        const render::Vec3 center{1.0f, 0.0f, 2.0f};
+        w.update(0.05, center);
+        CHECK(w.particle_count() > 0);
+        const f32 y0 = w.particles().front().pos.y;
+        w.update(0.5, center);
+        CHECK(w.particles().front().pos.y < y0); // fällt nach unten
+        // in der Nähe des Zentrums gespawnt
+        CHECK(std::fabs(w.particles().front().pos.x - center.x) < 24.0f);
+        // Ausschalten → keine Partikel
+        w.clear(0.0f);
+        CHECK(w.particle_count() == 0);
+        // Schnee ist langsamer als Regen
+        WeatherSystem w2;
+        w2.set(WeatherType::Snow, 4.0f, 0.0f);
+        w2.update(0.05, center);
+        const f32 sy0 = w2.particles().front().pos.y;
+        w2.update(0.5, center);
+        CHECK(w2.particles().front().pos.y - sy0 > -3.0f); // deutlich langsamer
+        // Nebel erzeugt Partikel
+        WeatherSystem w3;
+        w3.set(WeatherType::Fog, 5.0f, 0.0f);
+        w3.update(0.05, center);
+        CHECK(w3.particle_count() > 0);
+    }
+
     // Default map + player movement
     auto sc = create_default_map("Test");
     CHECK(sc != nullptr);

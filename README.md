@@ -92,7 +92,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Navigation | Grid-Bake aus Kollision, A*, NavAgent |
 | Animation | Tweens, Transform-Tracks, Idle-Bob |
 | Player | WASD-Bewegung, Interaktion, Follow-Kamera, **Pixel-Art-Sprite** |
-| Weather | Rain/Storm/Snow/Fog Tint (+ **Kamera-Shake**) |
+| Weather | Rain/Storm/Snow/Fog **Tint + Partikel** (+ Kamera-Shake) |
 | Map | JSON laden/speichern, Default-Karte |
 | Scenes | Titel, Map, Menü, Dialog, Choice, Battle, Save/Load, **Game Over** |
 | Inventory | Gold, Items, Party, EXP/Level |

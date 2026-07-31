@@ -298,6 +298,7 @@ Sinks: Konsole, Datei (`logs/aether_YYYYMMDD.log`), optional Editor-Panel.
 | 26 | Textur-Pipeline | ✅ PNG/JPG → GPU (stb, GL-Upload, Shader-Sampler) |
 | 27 | Character-Sprites & GameOver | ✅ Billboard-Quads, Pixel-Art-Demo, Game-Over-Screen |
 | 28 | Event-Animationen & Kamera | ✅ PlayAnimation (Skalen-Puls), ControlCamera (Offset/Position/Shake) |
+| 29 | Wetter-Partikel | ✅ Regen/Sturm/Schnee/Nebel als sichtbare Partikel |
 
 ---
 
