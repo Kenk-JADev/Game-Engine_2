@@ -503,7 +503,7 @@ void EditorApp::draw_map_tab() {
                 cam_yaw_ += io.MouseDelta.x * 0.01f;
                 cam_height_ = std::clamp(cam_height_ - io.MouseDelta.y * 0.05f, 1.0f, 50.0f);
             }
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            if (!terrain_paint_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 const float sx = io.MousePos.x;
                 const float sy = io.MousePos.y;
                 viewport_pick(sx, sy, io.DisplaySize.x, io.DisplaySize.y);
@@ -511,6 +511,21 @@ void EditorApp::draw_map_tab() {
                     dragging_ = true;
                     push_undo("Verschieben");
                 }
+            }
+            if (terrain_paint_ && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                render::Vec3 origin, dir;
+                map_camera_.screen_to_ray(io.MousePos.x, io.MousePos.y, io.DisplaySize.x,
+                                          io.DisplaySize.y, origin, dir);
+                render::Vec3 hit;
+                if (render::Camera::ray_plane_y(origin, dir, 0.0f, hit)) {
+                    if (!terrain_dragging_) {
+                        terrain_dragging_ = true;
+                        push_undo("Terrain-Pinsel");
+                    }
+                    apply_terrain_brush(hit);
+                }
+            } else {
+                terrain_dragging_ = false;
             }
             if (dragging_ && ImGui::IsMouseDragging(ImGuiMouseButton_Left) &&
                 selected_id_ != kInvalidEntity) {
@@ -542,7 +557,8 @@ void EditorApp::draw_map_tab() {
         ImGui::SetCursorPos(ImVec2(8, 8));
         ImGui::TextColored(ImVec4(1, 1, 1, 0.85f),
                            "LMB: %s | RMB-Drag: Orbit | Wheel: Zoom",
-                           place_mode_ ? "Platzieren" : "Auswählen");
+                           terrain_paint_ ? "Terrain-Pinsel"
+                                          : (place_mode_ ? "Platzieren" : "Auswählen"));
         if (selected_id_ != kInvalidEntity) {
             if (auto* o = map_scene_->find(selected_id_)) {
                 ImGui::Text("Auswahl: %s", o->name.c_str());
@@ -556,6 +572,7 @@ void EditorApp::draw_map_tab() {
     ImGui::SliderFloat("Abstand", &cam_dist_, 5.0f, 60.0f);
     ImGui::SliderFloat("Höhe", &cam_height_, 2.0f, 40.0f);
     ImGui::SliderFloat("Drehung", &cam_yaw_, -3.14f, 3.14f);
+    draw_terrain_panel();
     if (auto* obj = map_scene_->find(selected_id_)) {
         char name[128];
         std::snprintf(name, sizeof(name), "%s", obj->name.c_str());
@@ -1623,6 +1640,146 @@ void EditorApp::reload_scripts() {
     auto r = ruby_->reload_file(script_path_);
     script_output_ = r.ok ? ("Hot-Reload OK: " + r.value) : r.error;
     status_message_ = r.ok ? "Hot-Reload OK" : "Hot-Reload Fehler";
+}
+
+// =============================================================================
+// Terrain-Editor
+// =============================================================================
+
+void EditorApp::rebuild_terrain_mesh() {
+    if (!map_scene_ || !map_scene_->terrain().valid()) {
+        return;
+    }
+    const auto& t = map_scene_->terrain();
+    auto mesh = render::Mesh::create_terrain(t.width, t.depth, t.cell, t.heights);
+    if (renderer_) {
+        renderer_->upload_mesh(*mesh);
+    }
+    map_scene_->set_terrain_mesh(std::move(mesh));
+    status_message_ = "Terrain aktualisiert";
+}
+
+void EditorApp::apply_terrain_brush(const render::Vec3& hit) {
+    if (!map_scene_ || !map_scene_->terrain().valid()) {
+        return;
+    }
+    auto& t = map_scene_->terrain();
+    const f32 half_w = static_cast<f32>(t.width) * t.cell * 0.5f;
+    const f32 half_d = static_cast<f32>(t.depth) * t.cell * 0.5f;
+    const i32 gw = t.width + 1;
+
+    // Trefferpunkt → Grid-Zelle (Eck-Indizes rund um den Radius)
+    const f32 wx = hit.x + half_w;
+    const f32 wz = hit.z + half_d;
+    const i32 cx = static_cast<i32>(std::floor(wx / t.cell));
+    const i32 cz = static_cast<i32>(std::floor(wz / t.cell));
+    const i32 r = std::max(1, static_cast<i32>(std::ceil(terrain_radius_ / t.cell)));
+    const i32 x0 = std::max(0, cx - r);
+    const i32 x1 = std::min(t.width, cx + r);
+    const i32 z0 = std::max(0, cz - r);
+    const i32 z1 = std::min(t.depth, cz + r);
+
+    bool changed = false;
+    for (i32 gz = z0; gz <= z1; ++gz) {
+        for (i32 gx = x0; gx <= x1; ++gx) {
+            const f32 px = static_cast<f32>(gx) * t.cell - half_w;
+            const f32 pz = static_cast<f32>(gz) * t.cell - half_d;
+            const f32 dx = px - hit.x;
+            const f32 dz = pz - hit.z;
+            const f32 dist = std::sqrt(dx * dx + dz * dz);
+            if (dist > terrain_radius_) {
+                continue;
+            }
+            const f32 falloff = 1.0f - dist / std::max(terrain_radius_, 1.0e-3f);
+            auto& h = t.heights[static_cast<usize>(gz) * static_cast<usize>(gw) +
+                               static_cast<usize>(gx)];
+            f32 delta = 0.0f;
+            if (terrain_mode_ == 0) {
+                delta = terrain_strength_ * falloff;
+            } else if (terrain_mode_ == 1) {
+                delta = -terrain_strength_ * falloff;
+            } else { // glätten: in Richtung Nachbarschafts-Durchschnitt
+                f32 sum = 0.0f;
+                i32 n = 0;
+                for (i32 az = std::max(0, gz - 1); az <= std::min(t.depth, gz + 1); ++az) {
+                    for (i32 ax = std::max(0, gx - 1); ax <= std::min(t.width, gx + 1); ++ax) {
+                        sum += t.heights[static_cast<usize>(az) * static_cast<usize>(gw) +
+                                        static_cast<usize>(ax)];
+                        ++n;
+                    }
+                }
+                const f32 avg = n > 0 ? sum / static_cast<f32>(n) : h;
+                delta = (avg - h) * terrain_strength_ * falloff * 2.0f;
+            }
+            if (delta != 0.0f) {
+                h = std::clamp(h + delta, -5.0f, 20.0f);
+                changed = true;
+            }
+        }
+    }
+    if (changed) {
+        rebuild_terrain_mesh();
+    }
+}
+
+void EditorApp::draw_terrain_panel() {
+#if defined(AETHER_WITH_IMGUI)
+    if (!map_scene_) {
+        return;
+    }
+    ImGui::Separator();
+    ImGui::TextUnformatted("Terrain (Höhenfeld)");
+    auto& t = map_scene_->terrain();
+    if (!t.valid()) {
+        ImGui::TextWrapped("Noch kein Terrain. Grid-Größe wählen und anlegen:");
+        static int tw = 8, td = 8;
+        ImGui::SetNextItemWidth(80);
+        ImGui::InputInt("Breite (Zellen)", &tw);
+        ImGui::SetNextItemWidth(80);
+        ImGui::InputInt("Tiefe (Zellen)", &td);
+        tw = std::clamp(tw, 2, 64);
+        td = std::clamp(td, 2, 64);
+        if (ImGui::Button("Terrain anlegen", ImVec2(-1, 0))) {
+            t.reset(tw, td, 4.0f);
+            rebuild_terrain_mesh();
+        }
+        return;
+    }
+
+    ImGui::Text("Grid: %dx%d, Zelle %.1f m", t.width, t.depth, t.cell);
+    {
+        char tex[256];
+        std::snprintf(tex, sizeof(tex), "%s", t.texture_path.c_str());
+        if (ImGui::InputText("Textur (log. Pfad)", tex, sizeof(tex))) {
+            t.texture_path = tex;
+        }
+        if (ImGui::Button("Textur übernehmen", ImVec2(-1, 0)) && tex[0] && resources_) {
+            if (auto r = resources_->load_texture(tex)) {
+                map_scene_->set_terrain_texture(r.value());
+                status_message_ = "Terrain-Textur: " + std::string(tex);
+            } else {
+                status_message_ = "Textur nicht gefunden: " + std::string(tex);
+            }
+        }
+    }
+    ImGui::Checkbox("Pinsel aktiv (LMB im Viewport)", &terrain_paint_);
+    const char* modes[] = {"Heben", "Senken", "Glätten"};
+    ImGui::Combo("Pinsel-Modus", &terrain_mode_, modes, IM_ARRAYSIZE(modes));
+    ImGui::SliderFloat("Radius", &terrain_radius_, 0.5f, 12.0f, "%.1f");
+    ImGui::SliderFloat("Stärke", &terrain_strength_, 0.02f, 0.8f, "%.2f");
+    if (ImGui::Button("Höhen zurücksetzen", ImVec2(-1, 0))) {
+        push_undo("Terrain zurücksetzen");
+        std::fill(t.heights.begin(), t.heights.end(), 0.0f);
+        rebuild_terrain_mesh();
+    }
+    if (ImGui::Button("Terrain entfernen", ImVec2(-1, 0))) {
+        push_undo("Terrain entfernen");
+        map_scene_->set_terrain({});
+        map_scene_->set_terrain_mesh(nullptr);
+        map_scene_->set_terrain_texture(nullptr);
+        status_message_ = "Terrain entfernt";
+    }
+#endif
 }
 
 } // namespace aether::editor

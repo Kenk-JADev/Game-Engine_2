@@ -302,6 +302,7 @@ Sinks: Konsole, Datei (`logs/aether_YYYYMMDD.log`), optional Editor-Panel.
 | 30 | Echtes Testspiel | ✅ Runtime-Subprozess (F5/Tab) + Headless-Smoke |
 | 31 | Script-IDE | ✅ Inline-Highlighting, Breakpoints, Autocomplete-Popup |
 | 32 | Event-Editor | ✅ Seiten, Bedingungen (Schalter/Variable), Befehle sortieren/duplizieren |
+| 33 | Terrain-Editor | ✅ Höhenfeld, Pinsel (heben/senken/glätten), Boden-Textur, Auto-Y |
 
 ---
 

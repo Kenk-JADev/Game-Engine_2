@@ -158,6 +158,15 @@ void Scene::collect_renderables(std::vector<render::Renderable>& out) const {
         r.visible = true;
         out.push_back(std::move(r));
     }
+    // Terrain zuletzt anhängen (Boden unter den Objekten)
+    if (terrain_mesh_ && terrain_.valid()) {
+        render::Renderable r;
+        r.mesh = terrain_mesh_;
+        r.material = render::Material::make_default();
+        r.material.albedo = render::Color{0.45f, 0.62f, 0.35f, 1.0f};
+        r.texture = terrain_texture_;
+        out.push_back(std::move(r));
+    }
 }
 
 EntityId Scene::pick_ray(const render::Vec3& origin, const render::Vec3& dir) const {
@@ -207,7 +216,15 @@ nlohmann::json Scene::to_json() const {
         }
         arr.push_back(std::move(jo));
     }
-    return nlohmann::json{{"name", name_}, {"objects", arr}};
+    nlohmann::json out{{"name", name_}, {"objects", arr}};
+    if (terrain_.valid()) {
+        out["terrain"] = {{"width", terrain_.width},
+                          {"depth", terrain_.depth},
+                          {"cell", terrain_.cell},
+                          {"texture", terrain_.texture_path},
+                          {"heights", terrain_.heights}};
+    }
+    return out;
 }
 
 void Scene::load_from_json(Scene& out, const nlohmann::json& j) {
@@ -216,6 +233,24 @@ void Scene::load_from_json(Scene& out, const nlohmann::json& j) {
     out.collision_.clear();
     out.next_id_ = 1;
     out.nav_ready_ = false;
+    out.terrain_ = {};
+    out.terrain_mesh_.reset();
+    if (j.contains("terrain") && j["terrain"].is_object()) {
+        const auto& t = j["terrain"];
+        TerrainData td;
+        td.width = t.value("width", 8);
+        td.depth = t.value("depth", 8);
+        td.cell = t.value("cell", 4.0f);
+        td.texture_path = t.value("texture", std::string());
+        if (t.contains("heights") && t["heights"].is_array()) {
+            td.heights = t["heights"].get<std::vector<f32>>();
+        } else {
+            td.reset(td.width, td.depth, td.cell);
+        }
+        if (td.valid()) {
+            out.terrain_ = std::move(td);
+        }
+    }
     if (!j.contains("objects")) return;
     for (const auto& jo : j["objects"]) {
         SceneObject o;

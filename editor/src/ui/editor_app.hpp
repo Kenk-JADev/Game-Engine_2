@@ -70,6 +70,11 @@ private:
     void draw_export_tab();
     void draw_status_bar();
 
+    // Terrain
+    void rebuild_terrain_mesh();
+    void apply_terrain_brush(const render::Vec3& hit);
+    void draw_terrain_panel();
+
     void open_project(const std::filesystem::path& path);
     void create_project(const std::filesystem::path& path);
     void save_project();
@@ -151,6 +156,13 @@ private:
     std::vector<std::string> script_completions_;
     std::unordered_set<int> script_bps_; ///< Breakpoints (0-basiert, Editor)
 #endif
+
+    // Terrain
+    bool terrain_paint_ = false;
+    int terrain_mode_ = 0; ///< 0=heben 1=senken 2=glätten
+    f32 terrain_radius_ = 2.0f;
+    f32 terrain_strength_ = 0.15f;
+    bool terrain_dragging_ = false;
 
     // Stats
     u64 frame_ = 0;

@@ -59,7 +59,10 @@ bool PlayerController::update_movement(const input::InputManager& input, f64 dt,
 
     if (world && collision_id_) {
         next = world->move_and_collide(collision_id_, delta);
-        next.y = cfg_.height;
+    }
+    // Terrain-Höhe automatisch (stilisierte RPGs: keine Sprungphysik)
+    if (scene_ && scene_->terrain().valid()) {
+        next.y = scene_->terrain().height_at(next.x, next.z) + cfg_.height;
     } else {
         next.y = cfg_.height;
     }

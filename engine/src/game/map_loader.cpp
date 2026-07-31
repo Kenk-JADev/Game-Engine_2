@@ -140,6 +140,27 @@ std::unique_ptr<scene::Scene> create_default_map(const std::string& name,
     return sc;
 }
 
+void build_terrain(scene::Scene& sc, res::ResourceManager* resources,
+                   render::Renderer* renderer) {
+    auto& terrain = sc.terrain();
+    if (!terrain.valid()) {
+        return;
+    }
+    auto mesh = render::Mesh::create_terrain(terrain.width, terrain.depth, terrain.cell,
+                                             terrain.heights);
+    if (renderer) {
+        renderer->upload_mesh(*mesh);
+    }
+    sc.set_terrain_mesh(std::move(mesh));
+    if (resources && !terrain.texture_path.empty()) {
+        if (auto tex = resources->load_texture(terrain.texture_path)) {
+            sc.set_terrain_texture(tex.value());
+        } else {
+            core::log_warn("Map", "terrain texture load failed: " + terrain.texture_path);
+        }
+    }
+}
+
 void attach_textures(scene::Scene& sc, res::ResourceManager& resources) {
     for (auto& o : sc.objects()) {
         if (o.texture_path.empty()) {
@@ -175,6 +196,7 @@ MapLoadResult load_map(const fs::path& map_file, res::ResourceManager* resources
         in >> j;
         out.scene = scene::Scene::create_from_json(j);
         assign_default_meshes(*out.scene, renderer);
+        build_terrain(*out.scene, resources, renderer);
         if (resources) {
             attach_textures(*out.scene, *resources);
         }

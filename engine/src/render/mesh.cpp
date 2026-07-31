@@ -148,4 +148,72 @@ std::shared_ptr<Mesh> Mesh::create_quad(f32 width, f32 height) {
     return mesh;
 }
 
+std::shared_ptr<Mesh> Mesh::create_terrain(i32 width, i32 depth, f32 cell,
+                                           const std::vector<f32>& heights) {
+    MeshLod lod0;
+    lod0.max_distance = 1.0e9f;
+
+    const i32 gw = width + 1;
+    const i32 gd = depth + 1;
+    if (width <= 0 || depth <= 0 || cell <= 0.0f ||
+        heights.size() < static_cast<usize>(gw * gd)) {
+        return create_plane(1.0f); // Fallback
+    }
+    const f32 half_w = static_cast<f32>(width) * cell * 0.5f;
+    const f32 half_d = static_cast<f32>(depth) * cell * 0.5f;
+
+    auto height_at = [&](i32 gx, i32 gz) {
+        return heights[static_cast<usize>(gz) * static_cast<usize>(gw) +
+                       static_cast<usize>(gx)];
+    };
+
+    lod0.vertices.reserve(static_cast<usize>(width * depth * 4));
+    lod0.indices.reserve(static_cast<usize>(width * depth * 6));
+    for (i32 z = 0; z < depth; ++z) {
+        for (i32 x = 0; x < width; ++x) {
+            const f32 px0 = -half_w + static_cast<f32>(x) * cell;
+            const f32 px1 = px0 + cell;
+            const f32 pz0 = -half_d + static_cast<f32>(z) * cell;
+            const f32 pz1 = pz0 + cell;
+
+            const f32 h00 = height_at(x, z);
+            const f32 h10 = height_at(x + 1, z);
+            const f32 h01 = height_at(x, z + 1);
+            const f32 h11 = height_at(x + 1, z + 1);
+
+            const u32 base = static_cast<u32>(lod0.vertices.size());
+            lod0.vertices.push_back({{px0, h00, pz0}, {0, 1, 0}, {0, 0}, {1, 1, 1, 1}});
+            lod0.vertices.push_back({{px1, h10, pz0}, {0, 1, 0}, {1, 0}, {1, 1, 1, 1}});
+            lod0.vertices.push_back({{px1, h11, pz1}, {0, 1, 0}, {1, 1}, {1, 1, 1, 1}});
+            lod0.vertices.push_back({{px0, h01, pz1}, {0, 1, 0}, {0, 1}, {1, 1, 1, 1}});
+            lod0.indices.push_back(base);
+            lod0.indices.push_back(base + 1);
+            lod0.indices.push_back(base + 2);
+            lod0.indices.push_back(base);
+            lod0.indices.push_back(base + 2);
+            lod0.indices.push_back(base + 3);
+        }
+    }
+
+    // Flache Normalen je Dreieck (bessere Beleuchtung als (0,1,0)).
+    // Windungsreihenfolge wie create_plane (CW von oben) → Normale invertieren,
+    // damit sie nach oben (+Y) zeigt und das Lighting stimmt.
+    for (usize t = 0; t + 2 < lod0.indices.size(); t += 3) {
+        const auto& a = lod0.vertices[lod0.indices[t]].position;
+        const auto& b = lod0.vertices[lod0.indices[t + 1]].position;
+        const auto& c = lod0.vertices[lod0.indices[t + 2]].position;
+        Vec3 n = glm::cross(c - a, b - a);
+        const f32 len = glm::length(n);
+        if (len > 1.0e-6f) n = n / len;
+        lod0.vertices[lod0.indices[t]].normal = n;
+        lod0.vertices[lod0.indices[t + 1]].normal = n;
+        lod0.vertices[lod0.indices[t + 2]].normal = n;
+    }
+
+    lod0.recompute_bounds();
+    auto mesh = std::make_shared<Mesh>("terrain");
+    mesh->set_lod(0, std::move(lod0));
+    return mesh;
+}
+
 } // namespace aether::render

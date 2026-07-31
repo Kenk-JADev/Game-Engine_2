@@ -81,6 +81,17 @@ public:
     [[nodiscard]] static std::shared_ptr<Mesh> create_quad(f32 width = 1.0f,
                                                            f32 height = 1.0f);
 
+    /**
+     * @brief Erzeugt ein Höhenfeld-Grid-Mesh aus Eck-Höhen.
+     * @param width  Zellen in X
+     * @param depth  Zellen in Z
+     * @param cell   Zellgröße
+     * @param heights (width+1)×(depth+1) Eck-Höhen, row-major (x, dann z)
+     * @param heights_stride 0 = dicht gepackt
+     */
+    [[nodiscard]] static std::shared_ptr<Mesh> create_terrain(
+        i32 width, i32 depth, f32 cell, const std::vector<f32>& heights);
+
     /** @brief GPU-Upload-Flag (Renderer setzt dies). */
     void set_gpu_ready(bool v) noexcept { gpu_ready_ = v; }
     [[nodiscard]] bool gpu_ready() const noexcept { return gpu_ready_; }

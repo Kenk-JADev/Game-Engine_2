@@ -87,7 +87,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Audio | BGM/BGS/ME/SE – Null + **miniaudio** |
 | Resources | VFS, Cache, JSON, **stb_image**, OBJ-Loader, **eigener FBX-Reader** (ASCII + binär 7.x) |
 | Ruby | Stub-VM immer; **mruby** mit `-DAETHER_WITH_MRUBY=ON`; **RubyHost** mit echten Bindings für Graphics/Audio/Input/SceneManager/Player/NPC/Enemy/Camera/Weather/Inventory/Quest/Dialogue/Map/Game |
-| Scene | Objekte platzieren → **auto Kollision**, **Billboard-Sprites** (Charaktere drehen sich zur Kamera) |
+| Scene | Objekte platzieren → **auto Kollision**, Billboard-Sprites, **Höhenfeld-Terrain** (Auto-Y für den Spieler) |
 | Physics | AABB move_and_collide, Trigger |
 | Navigation | Grid-Bake aus Kollision, A*, NavAgent |
 | Animation | Tweens, Transform-Tracks, Idle-Bob |
@@ -113,7 +113,7 @@ Details: [`docs/dev/CI.md`](docs/dev/CI.md).
 | Undo | Karteneditor Snapshot-Undo/Redo |
 | Handbuch | docs/user/HANDBUCH.md |
 | Demo | 2 Karten, WAV-Audio, Portale, NPCs, **Sprite-Texturen** (Hero/Elder/Checker) |
-| Editor-Viewport | Ray-Picking, Drag-Move, Orbit/Zoom, Grid-Snap |
+| Editor-Viewport | Ray-Picking, Drag-Move, Orbit/Zoom, Grid-Snap, **Terrain-Pinsel** |
 | Events | Autorun, PlayerTouch, Fade bei Transfer |
 | Database | + Klassen, Animationen |
 | Input | Gamepad (A/B/Dpad/Stick) |
