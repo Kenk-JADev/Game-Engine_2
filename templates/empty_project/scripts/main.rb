@@ -4,9 +4,7 @@
 # Hier können globale Einstellungen und Plugins initialisiert werden.
 
 module Main
-  module_function
-
-  def boot
+  def self.boot
     # Beispiel:
     # Graphics.frame_rate = 60
     # Audio.bgm_play("Theme1", 80, 100)

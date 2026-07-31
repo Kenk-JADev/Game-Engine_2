@@ -2,14 +2,12 @@
 # ExamplePlugin – demonstriert den Plugin-Einstiegspunkt.
 
 module ExamplePlugin
-  module_function
-
-  def on_load
+  def self.on_load
     # Wird von der Engine nach dem Laden des Plugins aufgerufen.
     # puts "[ExamplePlugin] loaded"
   end
 
-  def on_unload
+  def self.on_unload
     # Cleanup
   end
 end

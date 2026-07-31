@@ -1039,6 +1039,13 @@ int run_game(const RuntimeOptions& options) {
 
     core::log_info("Runtime", "Exiting after " + std::to_string(frames) + " frame(s)");
 
+    // WICHTIG: GPU-Ressourcen (GlRenderer: VAOs/VBOs/Texturen/Shader) muessen
+    // freigegeben werden, SOLANGE der GL-Kontext noch aktuell ist. Sonst laufen
+    // die glDelete*-Aufrufe im Destruktor ohne Kontext -> Segfault beim Exit
+    // (im Release-Xvfb-Smoke beobachtet, exit code 139).
+    if (renderer) {
+        renderer.reset();
+    }
     if (window) {
         window.reset();
         window::WindowSystem::terminate();
